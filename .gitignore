@@ -1,0 +1,19 @@
+# Virtual environment
+venv/
+
+# SQLite database file
+db.sqlite3
+*.sqlite3
+
+# Python compiled files
+*.pyc
+__pycache__/
+
+# Log files
+*.log
+
+# VS Code settings (optional, if using VSCode)
+.vscode/
+
+# PyCharm settings (optional)
+.idea/
