@@ -38,6 +38,10 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+
+    # Thrid Party Apps
+    'django.contrib.sites',             # required for registration
+    'registration',                  # user registration app
 ]
 
 MIDDLEWARE = [
@@ -121,3 +125,14 @@ STATIC_URL = 'static/'
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Added Manually for django-registration
+
+SITE_ID = 1 # This is required for django-registration
+
+LOGIN_REDIRECT_URL = '/' # Redirect URL after login
+LOGOUT_REDIRECT_URL = '/' # Redirect URL after logout
+
+
+# Use the custom registration form defined in home/forms.py
+REGISTRATION_FORM = 'home.forms.CustomRegistrationForm' 

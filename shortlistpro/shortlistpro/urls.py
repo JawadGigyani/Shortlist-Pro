@@ -20,6 +20,6 @@ from django.urls import path, include
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('home.urls')),
-    # path('', include('home.auth_urls')),
-    # path('', include('home.register_urls')),
+    path('accounts/', include('django.contrib.auth.urls')),  # ✅ built-in login/logout views
+    path('accounts/', include('registration.backends.simple.urls')),  # ✅ django-registration
 ]
