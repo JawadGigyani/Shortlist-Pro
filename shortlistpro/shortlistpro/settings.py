@@ -131,6 +131,10 @@ STATIC_URL = 'static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+# Auth redirects for dashboard
+LOGIN_REDIRECT_URL = '/dashboard/'
+LOGOUT_REDIRECT_URL = '/'
+
 # Added Manually for django-registration
 
 SITE_ID = 1 # This is required for django-registration

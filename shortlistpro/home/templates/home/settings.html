@@ -1,0 +1,30 @@
+{% extends 'home/dashboard_base.html' %} {% block dashboard_title %}Settings{%
+endblock %} {% block dashboard_content %}
+<div class="mb-6">
+  <h2 class="text-xl font-bold">Admin Settings</h2>
+</div>
+<div class="bg-white rounded-xl shadow p-6 border border-gray-200">
+  <div class="mb-4">
+    System configuration, API keys, and user management go here.
+  </div>
+  <div class="flex flex-col gap-2">
+    <div class="flex items-center justify-between">
+      <span class="text-gray-700">API Key</span>
+      <input
+        type="text"
+        class="border rounded px-2 py-1 w-1/2"
+        value="sk-demo-123456"
+        readonly
+      />
+    </div>
+    <div class="flex items-center justify-between">
+      <span class="text-gray-700">Add User</span>
+      <button
+        class="px-3 py-1 bg-blue-100 text-blue-600 rounded hover:bg-blue-200"
+      >
+        Invite
+      </button>
+    </div>
+  </div>
+</div>
+{% endblock %}

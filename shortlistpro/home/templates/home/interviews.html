@@ -1,0 +1,53 @@
+{% extends 'home/dashboard_base.html' %} {% block dashboard_title %}Interviews{%
+endblock %} {% block dashboard_content %}
+<div class="mb-6">
+  <h2 class="text-xl font-bold">Interview Results</h2>
+</div>
+<div class="bg-white rounded-xl shadow p-6 border border-gray-200">
+  <table class="min-w-full divide-y divide-gray-200">
+    <thead>
+      <tr>
+        <th
+          class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase"
+        >
+          Candidate
+        </th>
+        <th
+          class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase"
+        >
+          Transcript
+        </th>
+        <th
+          class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase"
+        >
+          Summary
+        </th>
+        <th
+          class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase"
+        >
+          Actions
+        </th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="px-4 py-2">Ali Raza</td>
+        <td class="px-4 py-2">[Whisper transcript]</td>
+        <td class="px-4 py-2">[GPT summary]</td>
+        <td class="px-4 py-2 space-x-2">
+          <button
+            class="px-3 py-1 bg-green-100 text-green-600 rounded hover:bg-green-200"
+          >
+            Approve
+          </button>
+          <button
+            class="px-3 py-1 bg-red-100 text-red-600 rounded hover:bg-red-200"
+          >
+            Reject
+          </button>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+{% endblock %}

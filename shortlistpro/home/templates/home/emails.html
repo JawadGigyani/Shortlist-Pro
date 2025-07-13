@@ -1,0 +1,53 @@
+{% extends 'home/dashboard_base.html' %} {% block dashboard_title %}Emails{%
+endblock %} {% block dashboard_content %}
+<div class="mb-6">
+  <h2 class="text-xl font-bold">Sent Emails</h2>
+</div>
+<div class="bg-white rounded-xl shadow p-6 border border-gray-200">
+  <table class="min-w-full divide-y divide-gray-200">
+    <thead>
+      <tr>
+        <th
+          class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase"
+        >
+          To
+        </th>
+        <th
+          class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase"
+        >
+          Subject
+        </th>
+        <th
+          class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase"
+        >
+          Status
+        </th>
+        <th
+          class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase"
+        >
+          Actions
+        </th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="px-4 py-2">ali@email.com</td>
+        <td class="px-4 py-2">Interview Invitation</td>
+        <td class="px-4 py-2">Sent</td>
+        <td class="px-4 py-2 space-x-2">
+          <button
+            class="px-3 py-1 bg-blue-100 text-blue-600 rounded hover:bg-blue-200"
+          >
+            Resend
+          </button>
+          <button
+            class="px-3 py-1 bg-gray-100 text-gray-600 rounded hover:bg-gray-200"
+          >
+            View
+          </button>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+{% endblock %}

@@ -1,0 +1,19 @@
+{% extends 'home/dashboard_base.html' %} {% block dashboard_title %}Reports &
+Analytics{% endblock %} {% block dashboard_content %}
+<div class="mb-6">
+  <h2 class="text-xl font-bold">Reports & Analytics</h2>
+</div>
+<div class="bg-white rounded-xl shadow p-6 border border-gray-200">
+  <div class="flex justify-between items-center mb-4">
+    <button
+      class="px-4 py-2 bg-blue-500 text-white rounded-lg font-semibold shadow hover:bg-blue-600 transition"
+    >
+      Download CSV
+    </button>
+    <span class="text-gray-500">Analytics by Job Description</span>
+  </div>
+  <div class="h-32 flex items-center justify-center text-gray-400">
+    [Analytics Graph Placeholder]
+  </div>
+</div>
+{% endblock %}
