@@ -79,10 +79,15 @@ WSGI_APPLICATION = 'shortlistpro.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': 'shortlistpro_db',
+        'USER': 'postgres',
+        'PASSWORD': 'root',  
+        'HOST': 'localhost',
+        'PORT': '5432',
     }
 }
+
 
 
 # Password validation
@@ -136,3 +141,9 @@ LOGOUT_REDIRECT_URL = '/' # Redirect URL after logout
 
 # Use the custom registration form defined in home/forms.py
 REGISTRATION_FORM = 'home.forms.CustomRegistrationForm' 
+
+AUTHENTICATION_BACKENDS = [
+    'home.backends.EmailOrUsernameBackend',
+    'django.contrib.auth.backends.ModelBackend',
+]
+
