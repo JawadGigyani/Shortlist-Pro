@@ -139,7 +139,7 @@ LOGOUT_REDIRECT_URL = '/'
 
 SITE_ID = 1 # This is required for django-registration
 
-LOGIN_REDIRECT_URL = '/' # Redirect URL after login
+# LOGIN_REDIRECT_URL = '/' # Redirect URL after login
 LOGOUT_REDIRECT_URL = '/' # Redirect URL after logout
 
 
