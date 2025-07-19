@@ -22,6 +22,11 @@
         >Resumes</a
       >
       <a
+        href="{% url 'profile' %}"
+        class="block px-4 py-2 rounded-lg hover:bg-blue-50 text-gray-700 font-medium {% if request.resolver_match.url_name == 'profile' %}bg-blue-100 text-blue-600{% endif %}"
+        >Profile</a
+      >
+      <a
         href="{% url 'matching' %}"
         class="block px-4 py-2 rounded-lg hover:bg-blue-50 text-gray-700 font-medium {% if request.resolver_match.url_name == 'matching' %}bg-blue-100 text-blue-600{% endif %}"
         >Matching</a
@@ -72,11 +77,19 @@
         {% block dashboard_title %}{% endblock %}
       </div>
       <div class="flex items-center space-x-3">
+        {% if user.profile.profile_picture %}
+        <img
+          src="{{ user.profile.profile_picture.url }}"
+          alt="User"
+          class="w-9 h-9 rounded-full border border-gray-300"
+        />
+        {% else %}
         <img
           src="{% static 'avatar-placeholder.png' %}"
           alt="User"
           class="w-9 h-9 rounded-full border border-gray-300"
         />
+        {% endif %}
         <span class="text-gray-700 font-medium"
           >{{ user.get_full_name|default:user.username }}</span
         >

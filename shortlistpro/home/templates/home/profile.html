@@ -1,0 +1,138 @@
+{% extends 'home/dashboard_base.html' %} {% block dashboard_title %}Profile{%
+endblock %} {% block dashboard_content %}
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+  <div class="mb-8 text-center">
+    <h1 class="text-3xl font-bold text-gray-900 mb-2">Manage Your Profile</h1>
+    <p class="text-gray-500">
+      Update your personal info, upload a profile picture, or change your
+      password.
+    </p>
+  </div>
+
+  {% if messages %} {% for message in messages %}
+  <div
+    class="mb-6 px-4 py-3 rounded {% if message.tags == 'success' %}bg-green-100 text-green-800{% elif message.tags == 'error' %}bg-red-100 text-red-800{% else %}bg-blue-50 text-blue-700{% endif %}"
+  >
+    {{ message }}
+  </div>
+  {% endfor %} {% endif %}
+
+  <!-- Profile Picture Section -->
+  <div class="flex flex-col items-center justify-center mt-8 mb-8">
+    {% if request.user.profile.profile_picture %}
+    <img
+      src="{{ request.user.profile.profile_picture.url }}"
+      alt="Profile Picture"
+      class="w-32 h-32 rounded-full border object-cover mb-4"
+    />
+    {% else %}
+    <img
+      src="/static/images/default-profile.png"
+      alt="Profile Picture"
+      class="w-32 h-32 rounded-full border object-cover mb-4"
+    />
+    {% endif %}
+    <div class="flex items-center gap-4">
+      <label
+        for="profile_picture"
+        class="inline-block px-4 py-2 bg-blue-500 text-white rounded cursor-pointer hover:bg-blue-600"
+      >
+        Choose File
+        <input
+          id="profile_picture"
+          type="file"
+          name="profile_picture"
+          class="hidden"
+          form="profile-form"
+        />
+      </label>
+      {% if request.user.profile.profile_picture %}
+      <button
+        type="submit"
+        form="profile-form"
+        name="remove_picture"
+        class="text-red-600 text-sm ml-4 hover:text-red-800 font-medium"
+      >
+        Remove Picture
+      </button>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Personal Information Section -->
+  <div class="mt-10">
+    <div class="text-xl font-semibold text-gray-800 mb-4">
+      Personal Information
+    </div>
+    <form
+      method="post"
+      enctype="multipart/form-data"
+      class="w-full"
+      id="profile-form"
+    >
+      {% csrf_token %}
+      <div class="md:flex md:gap-6">
+        <div class="mb-4 md:mb-0 md:w-1/2">
+          <label class="block mb-1 text-gray-700">First Name</label>
+          <input
+            type="text"
+            name="first_name"
+            value="{{ user_form.first_name.value }}"
+            class="w-full px-4 py-2 rounded bg-gray-50 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400"
+          />
+        </div>
+        <div class="mb-4 md:w-1/2">
+          <label class="block mb-1 text-gray-700">Last Name</label>
+          <input
+            type="text"
+            name="last_name"
+            value="{{ user_form.last_name.value }}"
+            class="w-full px-4 py-2 rounded bg-gray-50 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400"
+          />
+        </div>
+      </div>
+
+      <!-- Save All Changes Button -->
+      <div class="flex justify-center md:justify-end">
+        <button
+          type="submit"
+          name="update_profile"
+          class="mt-8 bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700"
+        >
+          Save All Changes
+        </button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Password Change Section -->
+  <div class="mt-12">
+    <div class="text-xl font-semibold text-gray-800 mb-4">Change Password</div>
+    <form method="post">
+      {% csrf_token %}
+      <div class="space-y-4">
+        {% for field in password_form %}
+        <div>
+          {{ field.label_tag }}
+          <input
+            type="password"
+            name="{{ field.name }}"
+            class="w-full px-0 py-2 border-b border-gray-300 focus:outline-none focus:border-blue-500 bg-transparent"
+          />
+          {% if field.errors %}
+          <div class="text-red-600 text-sm">{{ field.errors }}</div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      <button
+        type="submit"
+        name="change_password"
+        class="mt-4 bg-blue-500 text-white px-6 py-2 rounded hover:bg-blue-600"
+      >
+        Change Password
+      </button>
+    </form>
+  </div>
+</div>
+{% endblock %}

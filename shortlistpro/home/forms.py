@@ -1,6 +1,26 @@
 from registration.forms import RegistrationForm
 from django import forms
 from django.contrib.auth.models import User
+from .models import Profile
+
+class UserForm(forms.ModelForm):
+    class Meta:
+        model = User
+        fields = ['first_name', 'last_name']
+
+class ProfileForm(forms.ModelForm):
+    class Meta:
+        model = Profile
+        fields = ['profile_picture']
+
+class CustomRegistrationForm(RegistrationForm):
+    first_name = forms.CharField(max_length=30, required=True, help_text='Required')
+    last_name = forms.CharField(max_length=30, required=True, help_text='Required')
+    email = forms.EmailField(required=True, help_text='Required')
+    # ...existing code...
+from registration.forms import RegistrationForm
+from django import forms
+from django.contrib.auth.models import User
 
 class CustomRegistrationForm(RegistrationForm):
     first_name = forms.CharField(max_length=30, required=True, help_text='Required')

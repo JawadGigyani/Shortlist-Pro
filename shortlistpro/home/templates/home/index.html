@@ -39,11 +39,19 @@
             @click="open = !open"
             class="flex items-center space-x-2 focus:outline-none"
           >
+            {% if user.profile.profile_picture %}
+            <img
+              src="{{ user.profile.profile_picture.url }}"
+              alt="User"
+              class="w-8 h-8 rounded-full border border-gray-300"
+            />
+            {% else %}
             <img
               src="{% static 'avatar-placeholder.png' %}"
               alt="User"
               class="w-8 h-8 rounded-full border border-gray-300"
             />
+            {% endif %}
             <svg
               class="w-4 h-4 text-gray-500"
               fill="none"
@@ -73,6 +81,11 @@
               href="{% url 'dashboard_home' %}"
               class="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-100"
               >Dashboard</a
+            >
+            <a
+              href="{% url 'profile' %}"
+              class="block px-4 py-2 text-sm text-gray-600 hover:bg-gray-100"
+              >Profile</a
             >
             <form method="post" action="{% url 'logout' %}">
               {% csrf_token %}
