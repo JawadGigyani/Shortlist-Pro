@@ -17,3 +17,6 @@ __pycache__/
 
 # PyCharm settings (optional)
 .idea/
+
+# Prettier Ignore File
+.prettierignore
