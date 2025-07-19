@@ -12,7 +12,6 @@ urlpatterns = [
     path('dashboard/emails/', views.emails, name='emails'),
     path('dashboard/interviews/', views.interviews, name='interviews'),
     path('dashboard/reports/', views.reports, name='reports'),
-    path('dashboard/settings/', views.settings_view, name='settings'),
     path('dashboard/profile/', views.profile_view, name='profile'),
     # path('register/', views.register, name='register'),
     # path('login/', auth_views.LoginView.as_view(template_name='registration/login.html'), name='login'),

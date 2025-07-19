@@ -47,9 +47,6 @@ def interviews(request):
 def reports(request):
     return render(request, 'home/reports.html')
 
-@login_required
-def settings_view(request):
-    return render(request, 'home/settings.html')
 
 
 # Profile management view

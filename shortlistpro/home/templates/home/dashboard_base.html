@@ -1,9 +1,11 @@
 {% extends 'base.html' %} {% load static %} {% block content %}
 <div class="min-h-screen flex bg-slate-100">
   <!-- Sidebar -->
-  <aside class="w-64 bg-white border-r border-gray-200 flex flex-col py-6 px-4">
+  <aside
+    class="w-64 bg-white border-r border-gray-200 flex flex-col py-6 px-4 fixed inset-y-0 left-0 h-screen"
+  >
     <div class="mb-8 flex items-center space-x-2">
-      <span class="text-xl font-bold text-blue-500">ShortlistPro</span>
+      <a href="/" class="text-xl font-bold text-blue-500">ShortlistPro</a>
     </div>
     <nav class="flex-1 space-y-2">
       <a
@@ -20,11 +22,6 @@
         href="{% url 'resumes' %}"
         class="block px-4 py-2 rounded-lg hover:bg-blue-50 text-gray-700 font-medium {% if request.resolver_match.url_name == 'resumes' %}bg-blue-100 text-blue-600{% endif %}"
         >Resumes</a
-      >
-      <a
-        href="{% url 'profile' %}"
-        class="block px-4 py-2 rounded-lg hover:bg-blue-50 text-gray-700 font-medium {% if request.resolver_match.url_name == 'profile' %}bg-blue-100 text-blue-600{% endif %}"
-        >Profile</a
       >
       <a
         href="{% url 'matching' %}"
@@ -51,12 +48,13 @@
         class="block px-4 py-2 rounded-lg hover:bg-blue-50 text-gray-700 font-medium {% if request.resolver_match.url_name == 'reports' %}bg-blue-100 text-blue-600{% endif %}"
         >Reports</a
       >
-      <a
-        href="{% url 'settings' %}"
-        class="block px-4 py-2 rounded-lg hover:bg-blue-50 text-gray-700 font-medium {% if request.resolver_match.url_name == 'settings' %}bg-blue-100 text-blue-600{% endif %}"
-        >Settings</a
-      >
     </nav>
+    <hr class="my-6 border-gray-300" />
+    <a
+      href="{% url 'profile' %}"
+      class="block px-4 py-2 rounded-lg hover:bg-blue-50 text-gray-700 font-medium {% if request.resolver_match.url_name == 'profile' %}bg-blue-100 text-blue-600{% endif %}"
+      >Profile</a
+    >
     <form method="post" action="{% url 'logout' %}" class="mt-8">
       {% csrf_token %}
       <button
@@ -68,7 +66,7 @@
     </form>
   </aside>
   <!-- Main Content -->
-  <div class="flex-1 flex flex-col min-h-screen">
+  <div class="flex-1 flex flex-col min-h-screen ml-64">
     <!-- Top Navbar -->
     <header
       class="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between"
