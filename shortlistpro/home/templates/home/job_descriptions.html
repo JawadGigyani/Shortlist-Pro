@@ -3,69 +3,122 @@
 Job Descriptions
 {% endblock %} 
 {% block dashboard_content %}
-<div class="flex justify-between items-center mb-6">
-  <h2 class="text-xl font-bold">All Job Descriptions</h2>
-  <button
-    class="px-4 py-2 bg-blue-500 text-white rounded-lg font-semibold shadow hover:bg-blue-600 transition"
-  >
-    + New Job
-  </button>
-</div>
-<div class="bg-white rounded-xl shadow p-6 border border-gray-200">
-  <table class="min-w-full divide-y divide-gray-200">
-    <thead>
-      <tr>
-        <th
-          class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase"
-        >
-          Title
-        </th>
-        <th
-          class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase"
-        >
-          Department
-        </th>
-        <th
-          class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase"
-        >
-          Actions
-        </th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td class="px-4 py-2">Software Engineer</td>
-        <td class="px-4 py-2">Engineering</td>
-        <td class="px-4 py-2 space-x-2">
-          <button
-            class="px-3 py-1 bg-blue-100 text-blue-600 rounded hover:bg-blue-200"
-          >
-            Edit
-          </button>
-          <button
-            class="px-3 py-1 bg-red-100 text-red-600 rounded hover:bg-red-200"
-          >
-            Delete
-          </button>
-        </td>
-      </tr>
-      <tr>
-        <td class="px-4 py-2">Data Analyst</td>
-        <td class="px-4 py-2">Analytics</td>
-        <td class="px-4 py-2 space-x-2">
-          <button
-            class="px-3 py-1 bg-blue-100 text-blue-600 rounded hover:bg-blue-200"
-          >
-            Edit
-          </button>
-          <button
-            class="px-3 py-1 bg-red-100 text-red-600 rounded hover:bg-red-200"
-          >
-            Delete
-          </button>
-        </td>
-      </tr>
-    </tbody>
-  </table>
-</div>
+<div x-data="{ addModal: false, editModal: false, deleteModal: false, editId: null, editTitle: '', editDept: '', editDesc: '', deleteId: null }" @keydown.escape.window="addModal = false; editModal = false; deleteModal = false;">
+  <div class="flex flex-col md:flex-row md:justify-between md:items-center mb-6 gap-4">
+    <h2 class="text-xl font-bold">All Job Descriptions</h2>
+    <button @click="addModal = true" class="px-4 py-2 bg-blue-500 text-white rounded-lg font-semibold shadow hover:bg-blue-600 transition">+ New Job Description</button>
+  </div>
+  <!-- Add Modal -->
+  <div x-show="addModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40" style="display: none;">
+    <div class="bg-white rounded-lg shadow-lg w-full max-w-lg p-8 relative">
+      <button @click="addModal = false" class="absolute top-2 right-2 text-gray-400 hover:text-gray-700">&times;</button>
+      <h3 class="text-xl font-bold mb-4">Add Job Description</h3>
+      <form method="post">{% csrf_token %}
+        <input type="hidden" name="add_jd" value="1">
+        <div class="mb-4">
+          <label class="block text-gray-700 font-semibold mb-1">Title</label>
+          <input type="text" name="title" class="w-full border rounded px-3 py-2" required>
+        </div>
+        <div class="mb-4">
+          <label class="block text-gray-700 font-semibold mb-1">Department</label>
+          <input type="text" name="department" class="w-full border rounded px-3 py-2" required>
+        </div>
+        <div class="mb-6">
+          <label class="block text-gray-700 font-semibold mb-1">Job Description</label>
+          <textarea name="description" rows="6" class="w-full border rounded px-3 py-2 font-mono" placeholder="Enter job description..." required></textarea>
+        </div>
+        <div class="flex justify-end">
+          <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-700">Add</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Edit Modal -->
+  <div x-show="editModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40" style="display: none;">
+    <div class="bg-white rounded-lg shadow-lg w-full max-w-lg p-8 relative">
+      <button @click="editModal = false" class="absolute top-2 right-2 text-gray-400 hover:text-gray-700">&times;</button>
+      <h3 class="text-xl font-bold mb-4">Edit Job Description</h3>
+      <form method="post">
+        {% csrf_token %}
+        <input type="hidden" name="edit_jd_id" :value="editId">
+        <div class="mb-4">
+          <label class="block text-gray-700 font-semibold mb-1">Title</label>
+          <input type="text" name="title" class="w-full border rounded px-3 py-2" x-model="editTitle" required>
+        </div>
+        <div class="mb-4">
+          <label class="block text-gray-700 font-semibold mb-1">Department</label>
+          <input type="text" name="department" class="w-full border rounded px-3 py-2" x-model="editDept" required>
+        </div>
+        <div class="mb-6">
+          <label class="block text-gray-700 font-semibold mb-1">Job Description</label>
+          <textarea name="description" rows="6" class="w-full border rounded px-3 py-2 font-mono" x-model="editDesc" required></textarea>
+        </div>
+        <div class="flex justify-end">
+          <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-700">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- JD Table -->
+  <div class="bg-white rounded-xl shadow p-6 border border-gray-200">
+    <table class="min-w-full divide-y divide-gray-200">
+      <thead>
+        <tr>
+          <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Title</th>
+          <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Department</th>
+          <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Created</th>
+          <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+        </tr>
+      </thead>
+      <tbody x-data="{ expandedRow: null }">
+        {% for jd in job_descriptions %}
+        <tr>
+          <td class="px-4 py-2 flex items-center gap-2">
+            <span class="cursor-pointer flex items-center gap-2" @click="expandedRow === {{ jd.id }} ? expandedRow = null : expandedRow = {{ jd.id }}">
+              <svg :class="expandedRow === {{ jd.id }} ? 'rotate-90 text-blue-500' : 'text-gray-400'" class="w-4 h-4 transition-transform duration-200" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" /></svg>
+              <span class="font-semibold">{{ jd.title }}</span>
+            </span>
+          </td>
+          <td class="px-4 py-2">{{ jd.department }}</td>
+          <td class="px-4 py-2">{{ jd.created_at|date:'M d, Y' }}</td>
+          <td class="px-4 py-2">
+            <div class="flex gap-2">
+              <button @click.prevent="editModal = true; editId = '{{ jd.id }}'; editTitle = '{{ jd.title|escapejs }}'; editDept = '{{ jd.department|escapejs }}'; editDesc = `{{ jd.description|escapejs }}`;" class="px-3 py-1 bg-blue-100 text-blue-600 rounded hover:bg-blue-200">Edit</button>
+              <button @click="deleteId = {{ jd.id }}" class="px-3 py-1 bg-red-100 text-red-600 rounded hover:bg-red-200">Delete</button>
+            </div>
+          </td>
+        </tr>
+        <tr x-show="expandedRow === {{ jd.id }}" style="display: none;">
+          <td colspan="4" class="bg-gray-50 px-4 py-4 text-gray-700 whitespace-pre-line border-t">
+            <div class="font-semibold mb-2">Job Description:</div>
+            <div class="prose max-w-none">{{ jd.description|linebreaksbr }}</div>
+          </td>
+        </tr>
+        {% empty %}
+        <tr><td colspan="4" class="text-center text-gray-400 py-4">No job descriptions yet.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Delete Confirmation Modal -->
+  <div x-show="deleteId !== null" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40" style="display: none;">
+    <div class="bg-white rounded-lg shadow-lg w-full max-w-sm p-6 relative">
+      <h3 class="text-lg font-bold mb-4">Are you sure?</h3>
+      <p class="text-gray-600 mb-6">This will permanently delete the job description.</p>
+      <div class="grid grid-cols-2 gap-4">
+        <button @click="deleteId = null" class="w-full py-2 bg-green-500 text-white font-semibold rounded hover:bg-green-600">No</button>
+        <form method="post" x-show="deleteId !== null">
+          {% csrf_token %}
+          <input type="hidden" name="delete_jd_id" :value="deleteId">
+          <button type="submit" class="w-full py-2 bg-red-600 text-white font-semibold rounded hover:bg-red-700">Yes</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+<!-- Duplicate job descriptions table removed -->
+<script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
 {% endblock %}

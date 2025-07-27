@@ -3,59 +3,117 @@
 Resumes
 {% endblock %} 
 {% block dashboard_content %}
-<div class="flex justify-between items-center mb-6">
-  <h2 class="text-xl font-bold">Uploaded Resumes</h2>
-  <button
-    class="px-4 py-2 bg-blue-500 text-white rounded-lg font-semibold shadow hover:bg-blue-600 transition"
-  >
-    Upload Resume
-  </button>
+
+<div x-data="{ addModal: false, activeTab: 0, deleteId: null }" @keydown.escape.window="addModal = false; deleteId = null;">
+  <div class="flex flex-col md:flex-row md:justify-between md:items-center mb-6 gap-4">
+    <h2 class="text-xl font-bold">Resumes by Job Description</h2>
+    <button @click="addModal = true" class="px-4 py-2 bg-blue-500 text-white rounded-lg font-semibold shadow hover:bg-blue-600 transition">+ Bulk Upload</button>
+  </div>
+
+  <!-- Bulk Upload Modal -->
+  <div x-show="addModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40" style="display: none;">
+    <div class="bg-white rounded-lg shadow-lg w-full max-w-lg p-8 relative max-h-[90vh] overflow-y-auto">
+      <button @click="addModal = false" class="absolute top-2 right-2 text-gray-400 hover:text-gray-700">&times;</button>
+      <h3 class="text-xl font-bold mb-4">Bulk Upload Resumes</h3>
+      <form method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        <input type="hidden" name="bulk_upload" value="1">
+        <div class="mb-4">
+          <label class="block text-gray-700 font-semibold mb-1">Select Job Description</label>
+          <select name="jd_id" class="w-full border rounded px-3 py-2" required>
+            <option value="" disabled selected>Select JD</option>
+            {% for jd in job_descriptions %}
+              <option value="{{ jd.id }}">{{ jd.title }} ({{ jd.department }})</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="mb-4">
+          <label class="block text-gray-700 font-semibold mb-1">Upload Resume Files</label>
+          <input type="file" name="resume_files" class="w-full border rounded px-3 py-2" accept=".pdf,.doc,.docx" multiple required>
+        </div>
+        <div class="flex justify-end">
+          <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-700">Upload</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- JD Tabs -->
+  <div class="mb-6">
+    <div class="flex flex-wrap gap-2">
+      {% for jd in job_descriptions %}
+        <button @click="activeTab = {{ forloop.counter0 }}" :class="activeTab === {{ forloop.counter0 }} ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'" class="px-4 py-2 rounded-lg font-semibold shadow transition">
+          {{ jd.title }} ({{ jd.department }})
+          <span class="ml-2 bg-blue-100 text-blue-600 rounded-full px-2 py-0.5 text-xs font-bold">{{ jd.resumes.count }}</span>
+        </button>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- JD Tab Content -->
+  <div class="bg-white rounded-xl shadow p-6 border border-gray-200">
+    {% for jd in job_descriptions %}
+      <div x-show="activeTab === {{ forloop.counter0 }}" style="display: none;">
+        <h3 class="text-lg font-bold mb-4">Resumes for: {{ jd.title }} ({{ jd.department }})</h3>
+        <table class="min-w-full divide-y divide-gray-200">
+          <thead>
+            <tr>
+              <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Filename</th>
+              <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Uploaded</th>
+              <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
+            </tr>
+          </thead>
+          <tbody x-data="{ expandedRow: null }">
+            {% for resume in jd.resumes.all %}
+            <tr>
+              <td class="px-4 py-2">
+                <span class="cursor-pointer text-blue-600 hover:text-blue-800" @click="expandedRow === {{ resume.id }} ? expandedRow = null : expandedRow = {{ resume.id }}">
+                  {{ resume.resume_file.name|default:'No file'|slice:'8:' }}
+                </span>
+              </td>
+              <td class="px-4 py-2">{{ resume.uploaded_at|date:'M d, Y' }}</td>
+              <td class="px-4 py-2">
+                <div class="flex gap-2">
+                  {% if resume.resume_file %}
+                  <a href="{{ resume.resume_file.url }}" target="_blank" class="px-3 py-1 bg-green-100 text-green-600 rounded hover:bg-green-200">View</a>
+                  {% endif %}
+                  <button @click="deleteId = {{ resume.id }}" class="px-3 py-1 bg-red-100 text-red-600 rounded hover:bg-red-200">Delete</button>
+                </div>
+              </td>
+            </tr>
+            <tr x-show="expandedRow === {{ resume.id }}" style="display: none;">
+              <td colspan="3" class="bg-gray-50 px-4 py-4 text-gray-700 border-t">
+                <div class="font-semibold mb-2">Resume Details:</div>
+                <div class="text-sm">Filename: {{ resume.resume_file.name|default:'No file'|slice:'8:' }}</div>
+                <div class="text-sm">Uploaded: {{ resume.uploaded_at|date:'M d, Y H:i' }}</div>
+                <!-- Parser step disabled -->
+              </td>
+            </tr>
+            {% empty %}
+            <tr><td colspan="3" class="text-center text-gray-400 py-8">No resumes uploaded for this JD yet.</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endfor %}
+  </div>
+
+  <!-- Delete Confirmation Modal -->
+  <div x-show="deleteId !== null" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40" style="display: none;">
+    <div class="bg-white rounded-lg shadow-lg w-full max-w-sm p-6 relative">
+      <h3 class="text-lg font-bold mb-4">Are you sure?</h3>
+      <p class="text-gray-600 mb-6">This will permanently delete the resume.</p>
+      <div class="grid grid-cols-2 gap-4">
+        <button @click="deleteId = null" class="w-full py-2 bg-green-500 text-white font-semibold rounded hover:bg-green-600">No</button>
+        <form method="post" x-show="deleteId !== null">
+          {% csrf_token %}
+          <input type="hidden" name="delete_resume_id" :value="deleteId">
+          <button type="submit" class="w-full py-2 bg-red-600 text-white font-semibold rounded hover:bg-red-700">Yes</button>
+        </form>
+      </div>
+    </div>
+  </div>
 </div>
-<div class="bg-white rounded-xl shadow p-6 border border-gray-200">
-  <table class="min-w-full divide-y divide-gray-200">
-    <thead>
-      <tr>
-        <th
-          class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase"
-        >
-          Candidate
-        </th>
-        <th
-          class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase"
-        >
-          Skills
-        </th>
-        <th
-          class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase"
-        >
-          Education
-        </th>
-        <th
-          class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase"
-        >
-          Actions
-        </th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td class="px-4 py-2">Ali Raza</td>
-        <td class="px-4 py-2">Python, Django</td>
-        <td class="px-4 py-2">BS Computer Science</td>
-        <td class="px-4 py-2 space-x-2">
-          <button
-            class="px-3 py-1 bg-blue-100 text-blue-600 rounded hover:bg-blue-200"
-          >
-            View
-          </button>
-          <button
-            class="px-3 py-1 bg-red-100 text-red-600 rounded hover:bg-red-200"
-          >
-            Delete
-          </button>
-        </td>
-      </tr>
-    </tbody>
-  </table>
-</div>
+
+<script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
 {% endblock %}

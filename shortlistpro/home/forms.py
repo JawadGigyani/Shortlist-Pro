@@ -13,6 +13,28 @@ class ProfileForm(forms.ModelForm):
         model = Profile
         fields = ['profile_picture']
 
+
+# Job Description Form
+from .models import JobDescription, Resume
+class JobDescriptionForm(forms.ModelForm):
+    class Meta:
+        model = JobDescription
+        fields = ['title', 'department', 'description']
+
+class ResumeForm(forms.ModelForm):
+    class Meta:
+        model = Resume
+        fields = ['candidate_name', 'email', 'phone', 'skills', 'education', 'experience', 'resume_file']
+        widgets = {
+            'candidate_name': forms.TextInput(attrs={'class': 'w-full border rounded px-3 py-2'}),
+            'email': forms.EmailInput(attrs={'class': 'w-full border rounded px-3 py-2'}),
+            'phone': forms.TextInput(attrs={'class': 'w-full border rounded px-3 py-2'}),
+            'skills': forms.Textarea(attrs={'class': 'w-full border rounded px-3 py-2', 'rows': 3}),
+            'education': forms.TextInput(attrs={'class': 'w-full border rounded px-3 py-2'}),
+            'experience': forms.Textarea(attrs={'class': 'w-full border rounded px-3 py-2', 'rows': 3}),
+            'resume_file': forms.FileInput(attrs={'class': 'w-full border rounded px-3 py-2'}),
+        }
+
 class CustomRegistrationForm(RegistrationForm):
     first_name = forms.CharField(max_length=30, required=True, help_text='Required')
     last_name = forms.CharField(max_length=30, required=True, help_text='Required')
