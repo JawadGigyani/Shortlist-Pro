@@ -4,6 +4,17 @@ Resumes
 {% endblock %} 
 {% block dashboard_content %}
 
+<!-- Messages -->
+{% if messages %}
+<div class="mb-4">
+  {% for message in messages %}
+    <div class="alert {% if message.tags == 'error' %}bg-red-100 border border-red-400 text-red-700{% elif message.tags == 'success' %}bg-green-100 border border-green-400 text-green-700{% else %}bg-blue-100 border border-blue-400 text-blue-700{% endif %} px-4 py-3 rounded mb-2">
+      {{ message }}
+    </div>
+  {% endfor %}
+</div>
+{% endif %}
+
 <div x-data="{ addModal: false, activeTab: 0, deleteId: null }" @keydown.escape.window="addModal = false; deleteId = null;">
   <div class="flex flex-col md:flex-row md:justify-between md:items-center mb-6 gap-4">
     <h2 class="text-xl font-bold">Resumes by Job Description</h2>
@@ -50,53 +61,104 @@ Resumes
     </div>
   </div>
 
-  <!-- JD Tab Content -->
-  <div class="bg-white rounded-xl shadow p-6 border border-gray-200">
-    {% for jd in job_descriptions %}
-      <div x-show="activeTab === {{ forloop.counter0 }}" style="display: none;">
-        <h3 class="text-lg font-bold mb-4">Resumes for: {{ jd.title }} ({{ jd.department }})</h3>
-        <table class="min-w-full divide-y divide-gray-200">
-          <thead>
-            <tr>
-              <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Filename</th>
-              <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Uploaded</th>
-              <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-            </tr>
-          </thead>
-          <tbody x-data="{ expandedRow: null }">
-            {% for resume in jd.resumes.all %}
-            <tr>
-              <td class="px-4 py-2">
-                <span class="cursor-pointer text-blue-600 hover:text-blue-800" @click="expandedRow === {{ resume.id }} ? expandedRow = null : expandedRow = {{ resume.id }}">
-                  {{ resume.resume_file.name|default:'No file'|slice:'8:' }}
-                </span>
-              </td>
-              <td class="px-4 py-2">{{ resume.uploaded_at|date:'M d, Y' }}</td>
-              <td class="px-4 py-2">
-                <div class="flex gap-2">
-                  {% if resume.resume_file %}
-                  <a href="{{ resume.resume_file.url }}" target="_blank" class="px-3 py-1 bg-green-100 text-green-600 rounded hover:bg-green-200">View</a>
-                  {% endif %}
-                  <button @click="deleteId = {{ resume.id }}" class="px-3 py-1 bg-red-100 text-red-600 rounded hover:bg-red-200">Delete</button>
+  <!-- Parsed Resume Details from FastAPI -->
+  {% if parsed_data %}
+  <div class="bg-white rounded-xl shadow p-6 border border-gray-200 mb-6">
+    <h3 class="text-lg font-bold mb-4">Parsed Resume Details</h3>
+    <div class="space-y-6">
+      {% for result in parsed_data %}
+        {% if result.status == 'success' %}
+        <div class="border border-gray-200 rounded-lg p-4">
+          <div class="flex justify-between items-start mb-3">
+            <h4 class="text-md font-semibold text-gray-800">{{ result.filename }}</h4>
+            <span class="px-2 py-1 bg-green-100 text-green-800 text-xs rounded-full">✓ Parsed Successfully</span>
+          </div>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <!-- Personal Information -->
+            <div class="space-y-2">
+              <h5 class="font-medium text-gray-700">Personal Information</h5>
+              <p class="text-sm"><span class="font-medium">Name:</span> {{ result.full_name|default:"N/A" }}</p>
+              <p class="text-sm"><span class="font-medium">Email:</span> {{ result.email|default:"N/A" }}</p>
+              <p class="text-sm"><span class="font-medium">Phone:</span> {{ result.phone|default:"N/A" }}</p>
+            </div>
+            
+            <!-- Skills -->
+            <div class="space-y-2">
+              <h5 class="font-medium text-gray-700">Skills</h5>
+              {% if result.skills %}
+                <div class="flex flex-wrap gap-1">
+                  {% for skill in result.skills %}
+                    <span class="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">{{ skill }}</span>
+                  {% endfor %}
                 </div>
-              </td>
-            </tr>
-            <tr x-show="expandedRow === {{ resume.id }}" style="display: none;">
-              <td colspan="3" class="bg-gray-50 px-4 py-4 text-gray-700 border-t">
-                <div class="font-semibold mb-2">Resume Details:</div>
-                <div class="text-sm">Filename: {{ resume.resume_file.name|default:'No file'|slice:'8:' }}</div>
-                <div class="text-sm">Uploaded: {{ resume.uploaded_at|date:'M d, Y H:i' }}</div>
-                <!-- Parser step disabled -->
-              </td>
-            </tr>
-            {% empty %}
-            <tr><td colspan="3" class="text-center text-gray-400 py-8">No resumes uploaded for this JD yet.</td></tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    {% endfor %}
+              {% else %}
+                <p class="text-sm text-gray-500">No skills listed</p>
+              {% endif %}
+            </div>
+            
+            <!-- Certifications -->
+            <div class="space-y-2">
+              <h5 class="font-medium text-gray-700">Certifications</h5>
+              {% if result.certifications %}
+                {% for cert in result.certifications %}
+                  <p class="text-sm">• {{ cert }}</p>
+                {% endfor %}
+              {% else %}
+                <p class="text-sm text-gray-500">No certifications listed</p>
+              {% endif %}
+            </div>
+          </div>
+          
+          <!-- Education -->
+          {% if result.education %}
+          <div class="mt-4">
+            <h5 class="font-medium text-gray-700 mb-2">Education</h5>
+            <div class="space-y-2">
+              {% for edu in result.education %}
+              <div class="bg-gray-50 p-3 rounded">
+                <p class="text-sm font-medium">{{ edu.degree }}{% if edu.major %} in {{ edu.major }}{% endif %}</p>
+                <p class="text-sm text-gray-600">{{ edu.university_name }}</p>
+                <p class="text-xs text-gray-500">
+                  {% if edu.start_year %}{{ edu.start_year }}{% endif %}
+                  {% if edu.end_year %} - {{ edu.end_year }}{% endif %}
+                </p>
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+          {% endif %}
+          
+          <!-- Work Experience -->
+          {% if result.work_experience %}
+          <div class="mt-4">
+            <h5 class="font-medium text-gray-700 mb-2">Work Experience</h5>
+            <div class="space-y-3">
+              {% for exp in result.work_experience %}
+              <div class="bg-gray-50 p-3 rounded">
+                <p class="text-sm font-medium">{{ exp.job_title }} at {{ exp.company_name }}</p>
+                {% if exp.location %}<p class="text-xs text-gray-600">{{ exp.location }}</p>{% endif %}
+                <p class="text-xs text-gray-500">{{ exp.start_date }}{% if exp.end_date %} - {{ exp.end_date }}{% endif %}</p>
+                {% if exp.description %}<p class="text-sm text-gray-700 mt-1">{{ exp.description }}</p>{% endif %}
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+          {% endif %}
+        </div>
+        {% elif result.status == 'error' %}
+        <div class="border border-red-200 rounded-lg p-4 bg-red-50">
+          <div class="flex justify-between items-start mb-2">
+            <h4 class="text-md font-semibold text-red-800">{{ result.filename }}</h4>
+            <span class="px-2 py-1 bg-red-100 text-red-800 text-xs rounded-full">✗ Parse Failed</span>
+          </div>
+          <p class="text-sm text-red-700">{{ result.message }}</p>
+        </div>
+        {% endif %}
+      {% endfor %}
+    </div>
   </div>
+  {% endif %}
 
   <!-- Delete Confirmation Modal -->
   <div x-show="deleteId !== null" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40" style="display: none;">

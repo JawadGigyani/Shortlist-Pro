@@ -8,7 +8,7 @@ def index(request):
 #     return render(request, 'home/register.html')
 
 
-
+import requests
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.contrib.auth.forms import PasswordChangeForm
@@ -91,38 +91,119 @@ def job_descriptions(request):
 
 @login_required
 def resumes(request):
-    # Handle bulk upload
-    if request.method == 'POST' and 'bulk_upload' in request.POST:
-        jd_id = request.POST.get('jd_id')
-        jd = JobDescription.objects.filter(id=jd_id, user=request.user).first()
-        files = request.FILES.getlist('resume_files')
-        if jd and files:
-            for f in files:
-                Resume.objects.create(
-                    user=request.user,
-                    resume_file=f,
-                    candidate_name='Unknown',
-                    email='no-email@example.com',
-                    phone='',
-                    skills='',
-                    education='',
-                    experience='',
-                    jobdescription=jd
-                )
-            messages.success(request, f'{len(files)} resumes uploaded for {jd.title}.')
-            return redirect('resumes')
-        else:
-            messages.error(request, 'Please select a JD and upload at least one file.')
-            return redirect('resumes')
-    # Handle delete resume
-    elif request.method == 'POST' and 'delete_resume_id' in request.POST:
-        resume_id = request.POST.get('delete_resume_id')
-        Resume.objects.filter(id=resume_id, user=request.user).delete()
-        messages.success(request, 'Resume deleted successfully!')
-        return redirect('resumes')
-
-    # Fetch JDs and attach resumes for template
+    """
+    Enhanced view to handle resume uploads with FastAPI parsing integration
+    """
     job_descriptions = JobDescription.objects.filter(user=request.user).order_by('-created_at')
+    
+    if request.method == 'POST':
+        if 'bulk_upload' in request.POST:
+            jd_id = request.POST.get('jd_id')
+            jd = JobDescription.objects.filter(id=jd_id, user=request.user).first()
+            files = request.FILES.getlist('resume_files')
+            
+            if not jd:
+                messages.error(request, 'Please select a valid job description.')
+                return redirect('resumes')
+            
+            if not files:
+                messages.error(request, 'Please select at least one resume file.')
+                return redirect('resumes')
+            
+            # Send files to FastAPI for parsing
+            fastapi_url = 'http://127.0.0.1:8001/parse-resumes'
+            files_payload = []
+            for f in files:
+                files_payload.append(('files', (f.name, f.read(), f.content_type)))
+            
+            try:
+                response = requests.post(fastapi_url, files=files_payload)
+                response.raise_for_status()
+                api_response = response.json()
+                parsed_data = api_response.get('results', [])
+                
+                # Process successful parses and save to database
+                successful_saves = 0
+                for result in parsed_data:
+                    if result.get('status') == 'success':
+                        try:
+                            # Extract skills as comma-separated string
+                            skills_list = result.get('skills', [])
+                            skills_str = ', '.join(skills_list) if skills_list else ''
+                            
+                            # Extract education as text
+                            education_list = result.get('education', [])
+                            education_str = ''
+                            if education_list:
+                                education_parts = []
+                                for edu in education_list:
+                                    edu_text = f"{edu.get('degree', '')} in {edu.get('major', '')}" if edu.get('major') else edu.get('degree', '')
+                                    if edu.get('university_name'):
+                                        edu_text += f" from {edu.get('university_name')}"
+                                    if edu.get('end_year'):
+                                        edu_text += f" ({edu.get('end_year')})"
+                                    education_parts.append(edu_text)
+                                education_str = '; '.join(education_parts)
+                            
+                            # Extract experience as text
+                            experience_list = result.get('work_experience', [])
+                            experience_str = ''
+                            if experience_list:
+                                exp_parts = []
+                                for exp in experience_list:
+                                    exp_text = f"{exp.get('job_title', '')} at {exp.get('company_name', '')}"
+                                    if exp.get('end_date'):
+                                        exp_text += f" ({exp.get('start_date', '')} - {exp.get('end_date', '')})"
+                                    exp_parts.append(exp_text)
+                                experience_str = '; '.join(exp_parts)
+                            
+                            # Create Resume object with parsed data
+                            Resume.objects.create(
+                                user=request.user,
+                                jobdescription=jd,
+                                candidate_name=result.get('full_name', 'Unknown'),
+                                email=result.get('email', 'no-email@example.com'),
+                                phone=result.get('phone', ''),
+                                skills=skills_str,
+                                education=education_str,
+                                experience=experience_str,
+                                # Note: We're not saving the file here as it was already processed
+                            )
+                            successful_saves += 1
+                        except Exception as e:
+                            messages.warning(request, f"Parsed {result.get('filename', 'unknown file')} but failed to save: {str(e)}")
+                
+                # Show results
+                failed_parses = [result for result in parsed_data if result.get('status') == 'error']
+                
+                if successful_saves > 0:
+                    messages.success(request, f'Successfully processed and saved {successful_saves} resume(s) for {jd.title}!')
+                
+                if failed_parses:
+                    for failed in failed_parses:
+                        messages.error(request, f"Failed to parse {failed.get('filename', 'unknown file')}: {failed.get('message', 'Unknown error')}")
+                
+                # Return with parsed data for display
+                return render(request, 'home/resumes.html', {
+                    'parsed_data': parsed_data, 
+                    'job_descriptions': job_descriptions
+                })
+                
+            except requests.exceptions.ConnectionError:
+                messages.error(request, "Cannot connect to resume parser service. Please make sure the FastAPI server is running.")
+                return redirect('resumes')
+            except Exception as e:
+                messages.error(request, f"Error communicating with resume parser: {str(e)}")
+                return redirect('resumes')
+        
+        # Handle delete resume
+        elif 'delete_resume_id' in request.POST:
+            resume_id = request.POST.get('delete_resume_id')
+            Resume.objects.filter(id=resume_id, user=request.user).delete()
+            messages.success(request, 'Resume deleted successfully!')
+            return redirect('resumes')
+    
+    # For GET requests and after processing, fetch JDs and attach resumes for template
     for jd in job_descriptions:
         jd._resumes = Resume.objects.filter(user=request.user, jobdescription=jd).order_by('-uploaded_at')
 

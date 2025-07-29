@@ -1,0 +1,11 @@
+requests
+fastapi
+uvicorn
+langchain
+langchain_groq
+langchain_core
+python-dotenv
+python-docx
+PyPDF2
+PyMuPDF
+pydantic
