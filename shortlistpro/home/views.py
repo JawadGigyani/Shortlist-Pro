@@ -22,6 +22,61 @@ from django.utils import timezone
 from datetime import timedelta
 
 
+def get_notifications():
+    """Helper function to get notifications for header"""
+    notifications = []
+    
+    # Get recent resumes for notifications
+    recent_resumes_notif = Resume.objects.order_by('-uploaded_at')[:2]
+    for resume in recent_resumes_notif:
+        notifications.append({
+            'title': 'New resume uploaded',
+            'description': f'A new candidate has submitted their resume',
+            'time_ago': get_time_ago(resume.uploaded_at),
+            'color': 'blue',
+            'icon': '''<svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                   </svg>''',
+            'timestamp': resume.uploaded_at
+        })
+    
+    # Get recent shortlisted for notifications
+    recent_shortlisted_notif = Shortlisted.objects.select_related('resume').order_by('-created_at')[:2]
+    for shortlisted in recent_shortlisted_notif:
+        notifications.append({
+            'title': 'Candidate shortlisted',
+            'description': f'AI matching found a high-potential candidate',
+            'time_ago': get_time_ago(shortlisted.created_at),
+            'color': 'green',
+            'icon': '''<svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                   </svg>''',
+            'timestamp': shortlisted.created_at
+        })
+    
+    # Get upcoming interviews for notifications
+    upcoming_interviews = Interview.objects.select_related('resume').filter(
+        scheduled_at__gte=timezone.now(),
+        scheduled_at__lte=timezone.now() + timedelta(hours=24)
+    ).order_by('scheduled_at')[:1]
+    
+    for interview in upcoming_interviews:
+        notifications.append({
+            'title': 'Interview reminder',
+            'description': f'You have an interview scheduled soon',
+            'time_ago': get_time_ago(interview.scheduled_at),
+            'color': 'purple',
+            'icon': '''<svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                   </svg>''',
+            'timestamp': interview.scheduled_at
+        })
+    
+    # Sort notifications by timestamp (most recent first) and limit to 5
+    notifications.sort(key=lambda x: x['timestamp'], reverse=True)
+    return notifications[:5]
+
+
 @login_required
 def dashboard_home(request):
     resumes_count = Resume.objects.count()
@@ -41,6 +96,60 @@ def dashboard_home(request):
         activity_shortlisted.append(Shortlisted.objects.filter(created_at__date=day).count())
         activity_interviews.append(Interview.objects.filter(scheduled_at__date=day).count())
 
+    # Recent Activities (last 10 activities across all models)
+    recent_activities = []
+    
+    # Get recent resumes
+    recent_resumes = Resume.objects.order_by('-uploaded_at')[:3]
+    for resume in recent_resumes:
+        recent_activities.append({
+            'title': 'New resume uploaded',
+            'description': f'{resume.candidate_name or "Unknown Candidate"} - {resume.email or "No email"}',
+            'time_ago': get_time_ago(resume.uploaded_at),
+            'color': 'blue',
+            'icon': '''<svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                   </svg>''',
+            'timestamp': resume.uploaded_at
+        })
+    
+    # Get recent shortlisted candidates
+    recent_shortlisted = Shortlisted.objects.select_related('resume').order_by('-created_at')[:3]
+    for shortlisted in recent_shortlisted:
+        recent_activities.append({
+            'title': 'Candidate shortlisted',
+            'description': f'{shortlisted.resume.candidate_name or "Unknown Candidate"} - {shortlisted.resume.email or "No email"}',
+            'time_ago': get_time_ago(shortlisted.created_at),
+            'color': 'green',
+            'icon': '''<svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                   </svg>''',
+            'timestamp': shortlisted.created_at
+        })
+    
+    # Get recent interviews
+    recent_interviews = Interview.objects.select_related('resume').order_by('-scheduled_at')[:3]
+    for interview in recent_interviews:
+        # Use scheduled_at since there's no created_at field
+        interview_time = interview.scheduled_at or timezone.now()  # fallback if scheduled_at is None
+        recent_activities.append({
+            'title': 'Interview scheduled',
+            'description': f'{interview.resume.candidate_name or "Unknown Candidate"} - {interview.resume.email or "No email"}',
+            'time_ago': get_time_ago(interview_time),
+            'color': 'purple',
+            'icon': '''<svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+                   </svg>''',
+            'timestamp': interview_time
+        })
+    
+    # Sort all activities by timestamp (most recent first) and limit to 5
+    recent_activities.sort(key=lambda x: x['timestamp'], reverse=True)
+    recent_activities = recent_activities[:5]
+
+    # Get notifications
+    notifications = get_notifications()
+
     context = {
         'resumes_count': resumes_count,
         'shortlisted_count': shortlisted_count,
@@ -49,8 +158,37 @@ def dashboard_home(request):
         'activity_resumes': activity_resumes,
         'activity_shortlisted': activity_shortlisted,
         'activity_interviews': activity_interviews,
+        'recent_activities': recent_activities,
+        'notifications': notifications,
+        'notifications_count': len(notifications),
     }
     return render(request, 'home/dashboard_home.html', context)
+
+
+def get_time_ago(datetime_obj):
+    """Helper function to calculate human-readable time difference"""
+    if datetime_obj is None:
+        return "Unknown time"
+    
+    now = timezone.now()
+    diff = now - datetime_obj
+    
+    if diff.days > 0:
+        if diff.days == 1:
+            return "1 day ago"
+        return f"{diff.days} days ago"
+    elif diff.seconds > 3600:
+        hours = diff.seconds // 3600
+        if hours == 1:
+            return "1 hour ago"
+        return f"{hours} hours ago"
+    elif diff.seconds > 60:
+        minutes = diff.seconds // 60
+        if minutes == 1:
+            return "1 minute ago"
+        return f"{minutes} minutes ago"
+    else:
+        return "Just now"
 
 
 
