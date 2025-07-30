@@ -222,9 +222,15 @@ def job_descriptions(request):
         form = JobDescriptionForm()
 
     job_descriptions = JobDescription.objects.filter(user=request.user).order_by('-created_at')
+    
+    # Get notifications for header
+    notifications = get_notifications()
+    
     return render(request, 'home/job_descriptions.html', {
         'form': form,
         'job_descriptions': job_descriptions,
+        'notifications': notifications,
+        'notifications_count': len(notifications),
     })
 
 @login_required
@@ -345,29 +351,54 @@ def resumes(request):
     for jd in job_descriptions:
         jd._resumes = Resume.objects.filter(user=request.user, jobdescription=jd).order_by('-uploaded_at')
 
+    # Get notifications for header
+    notifications = get_notifications()
+
     return render(request, 'home/resumes.html', {
         'job_descriptions': job_descriptions,
+        'notifications': notifications,
+        'notifications_count': len(notifications),
     })
 
 @login_required
 def matching(request):
-    return render(request, 'home/matching.html')
+    notifications = get_notifications()
+    return render(request, 'home/matching.html', {
+        'notifications': notifications,
+        'notifications_count': len(notifications),
+    })
 
 @login_required
 def shortlisted(request):
-    return render(request, 'home/shortlisted.html')
+    notifications = get_notifications()
+    return render(request, 'home/shortlisted.html', {
+        'notifications': notifications,
+        'notifications_count': len(notifications),
+    })
 
 @login_required
 def emails(request):
-    return render(request, 'home/emails.html')
+    notifications = get_notifications()
+    return render(request, 'home/emails.html', {
+        'notifications': notifications,
+        'notifications_count': len(notifications),
+    })
 
 @login_required
 def interviews(request):
-    return render(request, 'home/interviews.html')
+    notifications = get_notifications()
+    return render(request, 'home/interviews.html', {
+        'notifications': notifications,
+        'notifications_count': len(notifications),
+    })
 
 @login_required
 def reports(request):
-    return render(request, 'home/reports.html')
+    notifications = get_notifications()
+    return render(request, 'home/reports.html', {
+        'notifications': notifications,
+        'notifications_count': len(notifications),
+    })
 
 
 
@@ -399,8 +430,13 @@ def profile_view(request):
             else:
                 messages.error(request, 'Please correct the errors below.')
 
+    # Get notifications for header
+    notifications = get_notifications()
+
     return render(request, 'home/profile.html', {
         'user_form': user_form,
         'profile_form': profile_form,
         'password_form': password_form,
+        'notifications': notifications,
+        'notifications_count': len(notifications),
     })
