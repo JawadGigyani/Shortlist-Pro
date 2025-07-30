@@ -1,6 +1,12 @@
 import os
 import json
-import fitz
+try:
+    import fitz  # PyMuPDF
+except ImportError:
+    print("PyMuPDF not found. Installing...")
+    import subprocess
+    subprocess.check_call(["pip", "install", "PyMuPDF"])
+    import fitz
 import docx
 import tempfile
 from fastapi import FastAPI, UploadFile, File, HTTPException
@@ -138,6 +144,42 @@ class ResumeProcessingPipeline:
 # Initialize the parser agent
 parser_agent = ResumeParserAgent()
 processing_pipeline = ResumeProcessingPipeline()
+
+@app.post("/parse_resume")
+async def parse_single_resume(file: UploadFile = File(...)):
+    """
+    FastAPI endpoint to parse a single uploaded resume file
+    """
+    try:
+        if not os.getenv("GROQ_API_KEY"):
+            raise HTTPException(status_code=500, detail="GROQ_API_KEY not configured")
+        
+        # Validate file format
+        file_extension = os.path.splitext(file.filename)[1].lower()
+        if file_extension not in [".pdf", ".docx"]:
+            raise HTTPException(status_code=400, detail=f"Unsupported file format: {file_extension}")
+        
+        # Read file content
+        file_content = await file.read()
+        
+        # Extract text
+        text = processing_pipeline.extract_text_from_file(file_content, file.filename)
+        if not text:
+            raise HTTPException(status_code=400, detail="Failed to extract text from file")
+        
+        # Parse with agent
+        parsed_data = parser_agent.parse_resume(text)
+        if not parsed_data:
+            raise HTTPException(status_code=500, detail="Failed to parse resume content")
+        
+        # Add filename and status
+        parsed_data["filename"] = file.filename
+        parsed_data["status"] = "success"
+        
+        return JSONResponse(content=parsed_data)
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Processing error: {str(e)}")
 
 @app.post("/parse-resumes")
 async def parse_resumes(files: List[UploadFile] = File(...)):

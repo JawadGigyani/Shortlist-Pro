@@ -28,8 +28,19 @@ class Resume(models.Model):
     skills = models.TextField(blank=True, null=True)
     education = models.CharField(max_length=255, blank=True, null=True)
     experience = models.TextField(blank=True, null=True)
+    certifications = models.JSONField(default=list, blank=True)
     resume_file = models.FileField(upload_to='resumes/', blank=True, null=True)
     uploaded_at = models.DateTimeField(auto_now_add=True)
+    
+    class Meta:
+        # Ensure that each user can only have one resume per email address
+        constraints = [
+            models.UniqueConstraint(
+                fields=['user', 'email'], 
+                name='unique_user_email_resume',
+                condition=~models.Q(email='no-email@example.com')  # Exclude default email from uniqueness
+            )
+        ]
     
     def __str__(self):
         return f"{self.candidate_name} - Resume ({self.user.username})"

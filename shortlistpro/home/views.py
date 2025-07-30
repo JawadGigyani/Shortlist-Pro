@@ -9,11 +9,14 @@ def index(request):
 
 
 import requests
+import json
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.contrib.auth.forms import PasswordChangeForm
 from django.contrib.auth import update_session_auth_hash
 from django.shortcuts import redirect
+from django.http import JsonResponse
+from django.db import IntegrityError
 from .forms import UserForm, ProfileForm, JobDescriptionForm, ResumeForm
 from .models import Resume, Shortlisted, Interview, JobDescription
 from django.utils import timezone
@@ -124,9 +127,24 @@ def resumes(request):
                 
                 # Process successful parses and save to database
                 successful_saves = 0
+                skipped_duplicates = 0
                 for result in parsed_data:
                     if result.get('status') == 'success':
                         try:
+                            # Check for duplicate email before processing
+                            candidate_email = result.get('email', '').strip().lower()
+                            if candidate_email and candidate_email != 'no-email@example.com':
+                                # Check if resume with this email already exists for this user
+                                existing_resume = Resume.objects.filter(
+                                    user=request.user, 
+                                    email__iexact=candidate_email
+                                ).first()
+                                
+                                if existing_resume:
+                                    messages.warning(request, f"Skipped {result.get('filename', 'unknown file')}: Resume for {candidate_email} already exists (candidate: {existing_resume.candidate_name})")
+                                    skipped_duplicates += 1
+                                    continue
+                            
                             # Extract skills as comma-separated string
                             skills_list = result.get('skills', [])
                             skills_str = ', '.join(skills_list) if skills_list else ''
@@ -158,18 +176,24 @@ def resumes(request):
                                 experience_str = '; '.join(exp_parts)
                             
                             # Create Resume object with parsed data
-                            Resume.objects.create(
-                                user=request.user,
-                                jobdescription=jd,
-                                candidate_name=result.get('full_name', 'Unknown'),
-                                email=result.get('email', 'no-email@example.com'),
-                                phone=result.get('phone', ''),
-                                skills=skills_str,
-                                education=education_str,
-                                experience=experience_str,
-                                # Note: We're not saving the file here as it was already processed
-                            )
-                            successful_saves += 1
+                            try:
+                                Resume.objects.create(
+                                    user=request.user,
+                                    jobdescription=jd,
+                                    candidate_name=result.get('full_name', 'Unknown'),
+                                    email=candidate_email if candidate_email else 'no-email@example.com',
+                                    phone=result.get('phone', ''),
+                                    skills=skills_str,
+                                    education=education_str,
+                                    experience=experience_str,
+                                    certifications=result.get('certifications', []),
+                                    # Note: We're not saving the file here as it was already processed
+                                )
+                                successful_saves += 1
+                            except IntegrityError:
+                                # This catches database constraint violations as a backup
+                                messages.warning(request, f"Skipped {result.get('filename', 'unknown file')}: Resume for {candidate_email} already exists in database")
+                                skipped_duplicates += 1
                         except Exception as e:
                             messages.warning(request, f"Parsed {result.get('filename', 'unknown file')} but failed to save: {str(e)}")
                 
@@ -179,14 +203,56 @@ def resumes(request):
                 if successful_saves > 0:
                     messages.success(request, f'Successfully processed and saved {successful_saves} resume(s) for {jd.title}!')
                 
+                if skipped_duplicates > 0:
+                    messages.info(request, f'Skipped {skipped_duplicates} duplicate resume(s) based on email addresses.')
+                
                 if failed_parses:
                     for failed in failed_parses:
                         messages.error(request, f"Failed to parse {failed.get('filename', 'unknown file')}: {failed.get('message', 'Unknown error')}")
                 
-                # Return with parsed data for display
+                # Get all existing resumes from database and combine with new parsed data
+                all_resumes = []
+                
+                # Add existing saved resumes from database
+                existing_resumes = Resume.objects.filter(user=request.user, jobdescription=jd).order_by('-uploaded_at')
+                for resume in existing_resumes:
+                    # Convert database resume to display format
+                    skills_list = [skill.strip() for skill in resume.skills.split(',') if skill.strip()] if resume.skills else []
+                    certifications_list = []  # We'll add this field to model later
+                    
+                    all_resumes.append({
+                        'id': resume.id,  # Add the database ID
+                        'status': 'success',
+                        'filename': f"{resume.candidate_name}_resume.pdf",
+                        'full_name': resume.candidate_name,
+                        'email': resume.email,
+                        'phone': resume.phone,
+                        'skills': skills_list,
+                        'education': [{'degree': resume.education, 'university_name': '', 'major': '', 'start_year': '', 'end_year': ''}] if resume.education else [],
+                        'work_experience': [{'job_title': resume.experience, 'company_name': '', 'location': '', 'start_date': '', 'end_date': '', 'description': ''}] if resume.experience else [],
+                        'certifications': resume.certifications if resume.certifications else [],
+                        'job_description_id': str(jd.id),
+                        'from_database': True,
+                        'created_at': resume.uploaded_at.isoformat(),
+                        'file': {'name': resume.resume_file.name if resume.resume_file else ''}
+                    })
+                
+                # Add failed parses to the list so user can retry
+                for failed in failed_parses:
+                    failed['job_description_id'] = str(jd.id)
+                    all_resumes.append(failed)
+                
+                # Return with all resumes (existing + new + failed)
                 return render(request, 'home/resumes.html', {
-                    'parsed_data': parsed_data, 
-                    'job_descriptions': job_descriptions
+                    'parsed_data': all_resumes, 
+                    'job_descriptions': job_descriptions,
+                    'show_retry_options': True,
+                    'resumes_data': json.dumps(all_resumes),
+                    'job_descriptions_data': json.dumps([{
+                        'id': jd.id,
+                        'title': jd.title,
+                        'department': jd.department
+                    } for jd in job_descriptions])
                 })
                 
             except requests.exceptions.ConnectionError:
@@ -196,6 +262,123 @@ def resumes(request):
                 messages.error(request, f"Error communicating with resume parser: {str(e)}")
                 return redirect('resumes')
         
+        # Handle retry parsing request (JSON)
+        elif request.content_type == 'application/json':
+            try:
+                data = json.loads(request.body)
+                if data.get('retry_parse'):
+                    resume_id = data.get('resume_id')
+                    file_path = data.get('file_path')
+                    
+                    if not resume_id:
+                        return JsonResponse({'success': False, 'error': 'Resume ID is required'})
+                    
+                    try:
+                        resume = Resume.objects.get(id=resume_id, user=request.user)
+                        
+                        # Re-parse the resume using FastAPI
+                        fastapi_url = "http://localhost:8001/parse_resume"
+                        
+                        # Prepare the file for re-parsing (if file exists)
+                        if resume.resume_file and resume.resume_file.path:
+                            with open(resume.resume_file.path, 'rb') as file:
+                                files = {'file': (resume.resume_file.name, file, 'application/pdf')}
+                                response = requests.post(fastapi_url, files=files, timeout=30)
+                        else:
+                            return JsonResponse({'success': False, 'error': 'Resume file not found'})
+                        
+                        if response.status_code == 200:
+                            parsed_data = response.json()
+                            
+                            # Check for duplicate email if email has changed
+                            new_email = parsed_data.get('email', '').strip().lower()
+                            if new_email and new_email != resume.email.lower() and new_email != 'no-email@example.com':
+                                # Check if another resume with this email already exists
+                                existing_resume = Resume.objects.filter(
+                                    user=request.user, 
+                                    email__iexact=new_email
+                                ).exclude(id=resume.id).first()
+                                
+                                if existing_resume:
+                                    return JsonResponse({
+                                        'success': False, 
+                                        'error': f'Cannot update email to {new_email}: Resume for this email already exists (candidate: {existing_resume.candidate_name})'
+                                    })
+                            
+                            # Update the resume with new parsed data
+                            resume.candidate_name = parsed_data.get('full_name', resume.candidate_name)
+                            resume.email = new_email if new_email else resume.email
+                            resume.phone = parsed_data.get('phone', resume.phone)
+                            
+                            # Format experience
+                            experience_list = parsed_data.get('work_experience', [])
+                            if experience_list:
+                                exp_parts = []
+                                for exp in experience_list:
+                                    exp_text = f"{exp.get('job_title', '')} at {exp.get('company_name', '')}"
+                                    if exp.get('end_date'):
+                                        exp_text += f" ({exp.get('start_date', '')} - {exp.get('end_date', '')})"
+                                    exp_parts.append(exp_text)
+                                resume.experience = '; '.join(exp_parts)
+                            
+                            # Format education
+                            education_list = parsed_data.get('education', [])
+                            if education_list:
+                                education_parts = []
+                                for edu in education_list:
+                                    edu_text = f"{edu.get('degree', '')} in {edu.get('major', '')}" if edu.get('major') else edu.get('degree', '')
+                                    if edu.get('university_name'):
+                                        edu_text += f" from {edu.get('university_name')}"
+                                    if edu.get('end_year'):
+                                        edu_text += f" ({edu.get('end_year')})"
+                                    education_parts.append(edu_text)
+                                resume.education = '; '.join(education_parts)
+                            
+                            # Format skills
+                            skills_list = parsed_data.get('skills', [])
+                            resume.skills = ', '.join(skills_list) if skills_list else ''
+                            
+                            # Format certifications
+                            certifications_list = parsed_data.get('certifications', [])
+                            resume.certifications = certifications_list
+                            
+                            try:
+                                resume.save()
+                            except IntegrityError:
+                                return JsonResponse({
+                                    'success': False, 
+                                    'error': f'Cannot update email to {new_email}: Resume for this email already exists (database constraint)'
+                                })
+                            
+                            # Return the updated resume data
+                            return JsonResponse({
+                                'success': True,
+                                'data': {
+                                    'id': resume.id,
+                                    'candidate_name': resume.candidate_name,
+                                    'email': resume.email,
+                                    'phone': resume.phone,
+                                    'experience': resume.experience,
+                                    'education': resume.education,
+                                    'skills': resume.skills,
+                                    'certifications': resume.certifications,
+                                    'created_at': resume.uploaded_at.isoformat(),
+                                }
+                            })
+                        else:
+                            return JsonResponse({
+                                'success': False, 
+                                'error': f'FastAPI parsing failed: {response.text}'
+                            })
+                            
+                    except Resume.DoesNotExist:
+                        return JsonResponse({'success': False, 'error': 'Resume not found'})
+                    except Exception as e:
+                        return JsonResponse({'success': False, 'error': str(e)})
+                        
+            except json.JSONDecodeError:
+                return JsonResponse({'success': False, 'error': 'Invalid JSON data'})
+        
         # Handle delete resume
         elif 'delete_resume_id' in request.POST:
             resume_id = request.POST.get('delete_resume_id')
@@ -203,12 +386,39 @@ def resumes(request):
             messages.success(request, 'Resume deleted successfully!')
             return redirect('resumes')
     
-    # For GET requests and after processing, fetch JDs and attach resumes for template
+    # For GET requests, show existing resumes from database
+    all_existing_resumes = []
     for jd in job_descriptions:
-        jd._resumes = Resume.objects.filter(user=request.user, jobdescription=jd).order_by('-uploaded_at')
-
+        existing_resumes = Resume.objects.filter(user=request.user, jobdescription=jd).order_by('-uploaded_at')
+        for resume in existing_resumes:
+            skills_list = [skill.strip() for skill in resume.skills.split(',') if skill.strip()] if resume.skills else []
+            
+            all_existing_resumes.append({
+                'id': resume.id,  # Add the database ID
+                'status': 'success',
+                'filename': f"{resume.candidate_name}_resume.pdf",
+                'full_name': resume.candidate_name,
+                'email': resume.email,
+                'phone': resume.phone,
+                'skills': skills_list,
+                'education': [{'degree': resume.education, 'university_name': '', 'major': '', 'start_year': '', 'end_year': ''}] if resume.education else [],
+                'work_experience': [{'job_title': resume.experience, 'company_name': '', 'location': '', 'start_date': '', 'end_date': '', 'description': ''}] if resume.experience else [],
+                'certifications': resume.certifications if resume.certifications else [],
+                'job_description_id': str(jd.id),
+                'from_database': True,
+                'created_at': resume.uploaded_at.isoformat(),
+                'file': {'name': resume.resume_file.name if resume.resume_file else ''}
+            })
+    
     return render(request, 'home/resumes.html', {
         'job_descriptions': job_descriptions,
+        'parsed_data': all_existing_resumes if all_existing_resumes else None,
+        'resumes_data': json.dumps(all_existing_resumes) if all_existing_resumes else "[]",
+        'job_descriptions_data': json.dumps([{
+            'id': jd.id,
+            'title': jd.title,
+            'department': jd.department
+        } for jd in job_descriptions])
     })
 
 @login_required
