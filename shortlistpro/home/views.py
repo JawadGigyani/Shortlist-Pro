@@ -4,6 +4,21 @@ from django.shortcuts import render
 def index(request):
     return render(request, 'home/index.html')
 
+def pricing(request):
+    return render(request, 'home/pricing.html')
+
+def contact(request):
+    return render(request, 'home/contact.html')
+
+def documentation(request):
+    return render(request, 'home/documentation.html')
+
+def privacy_policy(request):
+    return render(request, 'home/privacy_policy.html')
+
+def terms_of_service(request):
+    return render(request, 'home/terms_of_service.html')
+
 # def register(request):
 #     return render(request, 'home/register.html')
 
