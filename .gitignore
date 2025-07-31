@@ -24,3 +24,7 @@ __pycache__/
 
 .env
 start_fastapi_server.bat
+
+shortlistpro\media
+
+shortlistpro\home\migrations
