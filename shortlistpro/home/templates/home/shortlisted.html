@@ -3,43 +3,247 @@
 Shortlisted Candidates
 {% endblock %} 
 {% block dashboard_content %}
-<div class="mb-6">
-  <h2 class="text-xl font-bold">Shortlisted Candidates</h2>
+
+<!-- Page Header with Gradient -->
+<div class="bg-gradient-to-r from-blue-600 via-purple-600 to-blue-800 rounded-2xl p-8 mb-8 text-white">
+  <div class="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+    <div>
+      <h1 class="text-3xl font-bold mb-2">Shortlisted Candidates</h1>
+      <p class="text-blue-100">Manage your selected candidates and schedule interviews</p>
+    </div>
+    <div class="flex items-center gap-3">
+      <button class="bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300 flex items-center gap-2">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+        </svg>
+        Send Bulk Email
+      </button>
+      <button class="bg-white/10 backdrop-blur-sm hover:bg-white/20 text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300 flex items-center gap-2">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+        </svg>
+        Export List
+      </button>
+    </div>
+  </div>
 </div>
-<div class="bg-white rounded-xl shadow p-6 border border-gray-200">
-  <table class="min-w-full divide-y divide-gray-200">
-    <thead>
-      <tr>
-        <th
-          class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase"
-        >
-          Candidate
-        </th>
-        <th
-          class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase"
-        >
-          Status
-        </th>
-        <th
-          class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase"
-        >
-          Actions
-        </th>
-      </tr>
-    </thead>
-    <tbody>
-      <tr>
-        <td class="px-4 py-2">Ali Raza</td>
-        <td class="px-4 py-2">Notified</td>
-        <td class="px-4 py-2 space-x-2">
-          <button
-            class="px-3 py-1 bg-blue-100 text-blue-600 rounded hover:bg-blue-200"
-          >
-            Mark Interviewed
+
+<!-- Stats Cards -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+  <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+    <div class="flex items-center justify-between">
+      <div>
+        <p class="text-sm font-medium text-gray-600">Total Shortlisted</p>
+        <p class="text-2xl font-bold text-gray-900">1</p>
+      </div>
+      <div class="bg-blue-100 p-3 rounded-lg">
+        <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+  
+  <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+    <div class="flex items-center justify-between">
+      <div>
+        <p class="text-sm font-medium text-gray-600">Awaiting Response</p>
+        <p class="text-2xl font-bold text-gray-900">0</p>
+      </div>
+      <div class="bg-yellow-100 p-3 rounded-lg">
+        <svg class="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+  
+  <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+    <div class="flex items-center justify-between">
+      <div>
+        <p class="text-sm font-medium text-gray-600">Interview Scheduled</p>
+        <p class="text-2xl font-bold text-gray-900">0</p>
+      </div>
+      <div class="bg-green-100 p-3 rounded-lg">
+        <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3a2 2 0 012-2h4a2 2 0 012 2v4m-6 9l6-6m0 0v6m0-6H6"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+  
+  <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+    <div class="flex items-center justify-between">
+      <div>
+        <p class="text-sm font-medium text-gray-600">Response Rate</p>
+        <p class="text-2xl font-bold text-gray-900">100%</p>
+      </div>
+      <div class="bg-purple-100 p-3 rounded-lg">
+        <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Filter and Search -->
+<div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 mb-8">
+  <div class="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+    <div class="flex flex-col md:flex-row gap-4">
+      <div class="relative">
+        <svg class="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+        </svg>
+        <input type="text" placeholder="Search candidates..." class="pl-10 pr-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all">
+      </div>
+      <select class="border border-gray-300 rounded-xl px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all">
+        <option>All Positions</option>
+        <option>Software Engineer</option>
+        <option>Data Scientist</option>
+      </select>
+      <select class="border border-gray-300 rounded-xl px-4 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all">
+        <option>All Status</option>
+        <option>Notified</option>
+        <option>Responded</option>
+        <option>Interview Scheduled</option>
+      </select>
+    </div>
+    <div class="flex items-center gap-2">
+      <button class="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
+        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/>
+        </svg>
+        Filter
+      </button>
+      <button class="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
+        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+        </svg>
+        Sort
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Shortlisted Candidates List -->
+<div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+  <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
+    <div class="flex items-center justify-between">
+      <div>
+        <h3 class="text-lg font-semibold text-gray-900">Shortlisted Candidates</h3>
+        <p class="text-sm text-gray-600">1 candidate shortlisted</p>
+      </div>
+      <label class="flex items-center gap-2 cursor-pointer">
+        <input type="checkbox" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+        <span class="text-sm text-gray-700">Select All</span>
+      </label>
+    </div>
+  </div>
+  
+  <div class="divide-y divide-gray-200">
+    <!-- Sample Shortlisted Candidate -->
+    <div class="p-6 hover:bg-gray-50 transition-colors">
+      <div class="flex items-start justify-between">
+        <div class="flex items-start gap-4 flex-1">
+          <input type="checkbox" class="mt-1 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+          <div class="bg-gradient-to-r from-blue-100 to-purple-100 p-3 rounded-full">
+            <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+            </svg>
+          </div>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-3 mb-2">
+              <h4 class="text-lg font-semibold text-gray-900">Ali Raza</h4>
+              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                Notified
+              </span>
+              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                Software Engineer
+              </span>
+            </div>
+            <p class="text-sm text-gray-600 mb-3">ali.raza@email.com • +1 (555) 123-4567</p>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+              <div class="bg-gray-50 rounded-lg p-3">
+                <h5 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Match Score</h5>
+                <div class="flex items-center gap-2">
+                  <div class="flex-1 bg-gray-200 rounded-full h-2">
+                    <div class="bg-green-500 h-2 rounded-full" style="width: 92%"></div>
+                  </div>
+                  <span class="text-sm font-bold text-green-600">92%</span>
+                </div>
+              </div>
+              
+              <div class="bg-gray-50 rounded-lg p-3">
+                <h5 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Experience</h5>
+                <p class="text-sm font-medium text-gray-900">5+ years</p>
+              </div>
+              
+              <div class="bg-gray-50 rounded-lg p-3">
+                <h5 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Shortlisted On</h5>
+                <p class="text-sm font-medium text-gray-900">Jan 28, 2025</p>
+              </div>
+            </div>
+            
+            <div class="mb-4">
+              <h5 class="text-sm font-semibold text-gray-700 mb-2">Key Skills</h5>
+              <div class="flex flex-wrap gap-2">
+                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">Python</span>
+                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">Django</span>
+                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">PostgreSQL</span>
+                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">AWS</span>
+              </div>
+            </div>
+            
+            <div class="flex items-center text-xs text-gray-500">
+              <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+              Last updated 2 days ago
+            </div>
+          </div>
+        </div>
+        
+        <div class="ml-6 flex flex-col gap-2">
+          <button class="inline-flex items-center px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold hover:from-blue-700 hover:to-purple-700 transition-all shadow-lg">
+            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3a2 2 0 012-2h4a2 2 0 012 2v4m-6 9l6-6m0 0v6m0-6H6"/>
+            </svg>
+            Schedule Interview
           </button>
-        </td>
-      </tr>
-    </tbody>
-  </table>
+          <button class="inline-flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 transition-all">
+            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+            </svg>
+            Send Email
+          </button>
+          <button class="inline-flex items-center px-4 py-2 bg-green-100 text-green-600 rounded-xl font-semibold hover:bg-green-200 transition-all">
+            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+            </svg>
+            View Resume
+          </button>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Empty State -->
+    <div class="text-center py-16">
+      <svg class="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+      </svg>
+      <h3 class="text-lg font-medium text-gray-900 mb-2">No additional candidates shortlisted</h3>
+      <p class="text-gray-500 mb-6">Shortlist more candidates from your AI matching results</p>
+      <a href="{% url 'matching' %}" class="inline-flex items-center px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold hover:from-blue-700 hover:to-purple-700 transition-all shadow-lg">
+        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+        </svg>
+        View AI Matching
+      </a>
+    </div>
+  </div>
 </div>
+
 {% endblock %}
