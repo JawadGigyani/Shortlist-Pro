@@ -238,7 +238,7 @@ def resumes(request):
     """
     Enhanced view to handle resume uploads with FastAPI parsing integration
     """
-    job_descriptions = JobDescription.objects.filter(user=request.user).order_by('-created_at')
+    job_descriptions = JobDescription.objects.filter(user=request.user).prefetch_related('resumes').order_by('-created_at')
     
     if request.method == 'POST':
         if 'bulk_upload' in request.POST:
@@ -273,33 +273,55 @@ def resumes(request):
                         try:
                             # Extract skills as comma-separated string
                             skills_list = result.get('skills', [])
-                            skills_str = ', '.join(skills_list) if skills_list else ''
+                            skills_parts = []
+                            if skills_list:
+                                for skill in skills_list:
+                                    if isinstance(skill, dict):
+                                        skills_parts.append(skill.get('name', str(skill)))
+                                    else:
+                                        skills_parts.append(str(skill))
+                            skills_str = ', '.join(skills_parts) if skills_parts else ''
                             
                             # Extract education as text
                             education_list = result.get('education', [])
-                            education_str = ''
+                            education_parts = []
                             if education_list:
-                                education_parts = []
                                 for edu in education_list:
-                                    edu_text = f"{edu.get('degree', '')} in {edu.get('major', '')}" if edu.get('major') else edu.get('degree', '')
-                                    if edu.get('university_name'):
-                                        edu_text += f" from {edu.get('university_name')}"
-                                    if edu.get('end_year'):
-                                        edu_text += f" ({edu.get('end_year')})"
-                                    education_parts.append(edu_text)
-                                education_str = '; '.join(education_parts)
+                                    if isinstance(edu, dict):
+                                        edu_text = f"{edu.get('degree', '')} in {edu.get('major', '')}" if edu.get('major') else edu.get('degree', '')
+                                        if edu.get('university_name'):
+                                            edu_text += f" from {edu.get('university_name')}"
+                                        if edu.get('end_year'):
+                                            edu_text += f" ({edu.get('end_year')})"
+                                        education_parts.append(edu_text.strip())
+                                    else:
+                                        education_parts.append(str(edu))
+                            education_str = '; '.join(education_parts) if education_parts else ''
                             
                             # Extract experience as text
                             experience_list = result.get('work_experience', [])
-                            experience_str = ''
+                            exp_parts = []
                             if experience_list:
-                                exp_parts = []
                                 for exp in experience_list:
-                                    exp_text = f"{exp.get('job_title', '')} at {exp.get('company_name', '')}"
-                                    if exp.get('end_date'):
-                                        exp_text += f" ({exp.get('start_date', '')} - {exp.get('end_date', '')})"
-                                    exp_parts.append(exp_text)
-                                experience_str = '; '.join(exp_parts)
+                                    if isinstance(exp, dict):
+                                        exp_text = f"{exp.get('job_title', 'Unknown Position')} at {exp.get('company_name', 'Unknown Company')}"
+                                        if exp.get('start_date') or exp.get('end_date'):
+                                            exp_text += f" ({exp.get('start_date', '')} - {exp.get('end_date', '')})"
+                                        exp_parts.append(exp_text)
+                                    else:
+                                        exp_parts.append(str(exp))
+                            experience_str = '; '.join(exp_parts) if exp_parts else ''
+                            
+                            # Extract certifications as text
+                            certifications_list = result.get('certifications', [])
+                            cert_parts = []
+                            if certifications_list:
+                                for cert in certifications_list:
+                                    if isinstance(cert, dict):
+                                        cert_parts.append(cert.get('name', str(cert)))
+                                    else:
+                                        cert_parts.append(str(cert))
+                            certifications_str = ', '.join(cert_parts) if cert_parts else ''
                             
                             # Create Resume object with parsed data
                             Resume.objects.create(
@@ -311,6 +333,7 @@ def resumes(request):
                                 skills=skills_str,
                                 education=education_str,
                                 experience=experience_str,
+                                certifications=certifications_str,
                                 # Note: We're not saving the file here as it was already processed
                             )
                             successful_saves += 1
@@ -347,10 +370,6 @@ def resumes(request):
             messages.success(request, 'Resume deleted successfully!')
             return redirect('resumes')
     
-    # For GET requests and after processing, fetch JDs and attach resumes for template
-    for jd in job_descriptions:
-        jd._resumes = Resume.objects.filter(user=request.user, jobdescription=jd).order_by('-uploaded_at')
-
     # Get notifications for header
     notifications = get_notifications()
 
@@ -420,6 +439,16 @@ def profile_view(request):
                 return redirect('profile')
             else:
                 messages.error(request, 'Please correct the errors below.')
+        elif 'remove_picture' in request.POST:
+            # Remove the profile picture
+            if request.user.profile.profile_picture:
+                request.user.profile.profile_picture.delete()
+                request.user.profile.profile_picture = None
+                request.user.profile.save()
+                messages.success(request, 'Profile picture removed successfully.')
+            else:
+                messages.error(request, 'No profile picture to remove.')
+            return redirect('profile')
         elif 'change_password' in request.POST:
             password_form = PasswordChangeForm(request.user, request.POST)
             if password_form.is_valid():

@@ -53,7 +53,7 @@ Resumes
           <p class="text-2xl font-bold text-gray-900">
             {% with total=0 %}
               {% for jd in job_descriptions %}
-                {% with total=total|add:jd._resumes.count %}{% endwith %}
+                {% with total=total|add:jd.resumes.count %}{% endwith %}
               {% endfor %}
               {{ total }}
             {% endwith %}
@@ -169,7 +169,7 @@ Resumes
         {% for jd in job_descriptions %}
           <button @click="activeTab = {{ forloop.counter0 }}" :class="activeTab === {{ forloop.counter0 }} ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'" class="px-4 py-3 rounded-xl font-semibold transition-all duration-300 flex items-center gap-2">
             <span>{{ jd.title }}</span>
-            <span class="text-xs bg-white/20 backdrop-blur-sm rounded-full px-2 py-1">{{ jd._resumes.count }}</span>
+            <span class="text-xs bg-white/20 backdrop-blur-sm rounded-full px-2 py-1">{{ jd.resumes.count }}</span>
           </button>
         {% endfor %}
       </div>
@@ -184,17 +184,17 @@ Resumes
         <div class="flex items-center justify-between">
           <div>
             <h3 class="text-lg font-semibold text-gray-900">{{ jd.title }} - {{ jd.department }}</h3>
-            <p class="text-sm text-gray-600">{{ jd._resumes.count }} resume{{ jd._resumes.count|pluralize }} uploaded</p>
+            <p class="text-sm text-gray-600">{{ jd.resumes.count }} resume{{ jd.resumes.count|pluralize }} uploaded</p>
           </div>
           <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
-            {{ jd._resumes.count }} Resume{{ jd._resumes.count|pluralize }}
+            {{ jd.resumes.count }} Resume{{ jd.resumes.count|pluralize }}
           </span>
         </div>
       </div>
       
-      {% if jd._resumes %}
+      {% if jd.resumes.all %}
       <div class="divide-y divide-gray-200">
-        {% for resume in jd._resumes %}
+        {% for resume in jd.resumes.all %}
         <div class="p-6 hover:bg-gray-50 transition-colors">
           <div class="flex items-start justify-between">
             <div class="flex-1 min-w-0">
@@ -224,9 +224,7 @@ Resumes
                 <div class="col-span-2">
                   <p class="text-sm font-medium text-gray-700 mb-2">Skills:</p>
                   <div class="flex flex-wrap gap-1">
-                    {% for skill in resume.skills|slice:":100"|split:"," %}
-                      <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">{{ skill|truncatechars:20 }}</span>
-                    {% endfor %}
+                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">{{ resume.skills|truncatechars:100 }}</span>
                   </div>
                 </div>
                 {% endif %}
@@ -243,6 +241,13 @@ Resumes
               <div class="mt-4">
                 <p class="text-sm font-medium text-gray-700 mb-2">Experience:</p>
                 <p class="text-sm text-gray-600">{{ resume.experience|truncatechars:150 }}</p>
+              </div>
+              {% endif %}
+              
+              {% if resume.certifications %}
+              <div class="mt-4">
+                <p class="text-sm font-medium text-gray-700 mb-2">Certifications:</p>
+                <p class="text-sm text-gray-600">{{ resume.certifications|truncatechars:150 }}</p>
               </div>
               {% endif %}
               
@@ -435,67 +440,6 @@ Resumes
             </span>
           </div>
           <p class="text-sm text-red-700 bg-white rounded-lg p-3">{{ result.message }}</p>
-        </div>
-        {% endif %}
-      {% endfor %}
-    </div>
-  </div>
-  {% endif %}
-            <div class="space-y-2">
-              <h5 class="font-medium text-gray-700">Certifications</h5>
-              {% if result.certifications %}
-                {% for cert in result.certifications %}
-                  <p class="text-sm">• {{ cert }}</p>
-                {% endfor %}
-              {% else %}
-                <p class="text-sm text-gray-500">No certifications listed</p>
-              {% endif %}
-            </div>
-          </div>
-          
-          <!-- Education -->
-          {% if result.education %}
-          <div class="mt-4">
-            <h5 class="font-medium text-gray-700 mb-2">Education</h5>
-            <div class="space-y-2">
-              {% for edu in result.education %}
-              <div class="bg-gray-50 p-3 rounded">
-                <p class="text-sm font-medium">{{ edu.degree }}{% if edu.major %} in {{ edu.major }}{% endif %}</p>
-                <p class="text-sm text-gray-600">{{ edu.university_name }}</p>
-                <p class="text-xs text-gray-500">
-                  {% if edu.start_year %}{{ edu.start_year }}{% endif %}
-                  {% if edu.end_year %} - {{ edu.end_year }}{% endif %}
-                </p>
-              </div>
-              {% endfor %}
-            </div>
-          </div>
-          {% endif %}
-          
-          <!-- Work Experience -->
-          {% if result.work_experience %}
-          <div class="mt-4">
-            <h5 class="font-medium text-gray-700 mb-2">Work Experience</h5>
-            <div class="space-y-3">
-              {% for exp in result.work_experience %}
-              <div class="bg-gray-50 p-3 rounded">
-                <p class="text-sm font-medium">{{ exp.job_title }} at {{ exp.company_name }}</p>
-                {% if exp.location %}<p class="text-xs text-gray-600">{{ exp.location }}</p>{% endif %}
-                <p class="text-xs text-gray-500">{{ exp.start_date }}{% if exp.end_date %} - {{ exp.end_date }}{% endif %}</p>
-                {% if exp.description %}<p class="text-sm text-gray-700 mt-1">{{ exp.description }}</p>{% endif %}
-              </div>
-              {% endfor %}
-            </div>
-          </div>
-          {% endif %}
-        </div>
-        {% elif result.status == 'error' %}
-        <div class="border border-red-200 rounded-lg p-4 bg-red-50">
-          <div class="flex justify-between items-start mb-2">
-            <h4 class="text-md font-semibold text-red-800">{{ result.filename }}</h4>
-            <span class="px-2 py-1 bg-red-100 text-red-800 text-xs rounded-full">✗ Parse Failed</span>
-          </div>
-          <p class="text-sm text-red-700">{{ result.message }}</p>
         </div>
         {% endif %}
       {% endfor %}

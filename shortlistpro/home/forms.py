@@ -24,7 +24,7 @@ class JobDescriptionForm(forms.ModelForm):
 class ResumeForm(forms.ModelForm):
     class Meta:
         model = Resume
-        fields = ['candidate_name', 'email', 'phone', 'skills', 'education', 'experience', 'resume_file']
+        fields = ['candidate_name', 'email', 'phone', 'skills', 'education', 'experience', 'certifications', 'resume_file']
         widgets = {
             'candidate_name': forms.TextInput(attrs={'class': 'w-full border rounded px-3 py-2'}),
             'email': forms.EmailInput(attrs={'class': 'w-full border rounded px-3 py-2'}),
@@ -32,6 +32,7 @@ class ResumeForm(forms.ModelForm):
             'skills': forms.Textarea(attrs={'class': 'w-full border rounded px-3 py-2', 'rows': 3}),
             'education': forms.TextInput(attrs={'class': 'w-full border rounded px-3 py-2'}),
             'experience': forms.Textarea(attrs={'class': 'w-full border rounded px-3 py-2', 'rows': 3}),
+            'certifications': forms.Textarea(attrs={'class': 'w-full border rounded px-3 py-2', 'rows': 2}),
             'resume_file': forms.FileInput(attrs={'class': 'w-full border rounded px-3 py-2'}),
         }
 
