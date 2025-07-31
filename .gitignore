@@ -21,10 +21,13 @@ __pycache__/
 # Prettier Ignore File
 .prettierignore
 
-
+# Environment variables
 .env
+
+# Custom scripts
 start_fastapi_server.bat
 
-shortlistpro\media
-
-shortlistpro\home\migrations
+# Media files (user uploads)
+shortlistpro/media/
+*/media/
+media/
