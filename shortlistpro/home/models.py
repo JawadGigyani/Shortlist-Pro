@@ -28,7 +28,7 @@ class Resume(models.Model):
     skills = models.TextField(blank=True, null=True)
     education = models.CharField(max_length=255, blank=True, null=True)
     experience = models.TextField(blank=True, null=True)
-    certifications = models.JSONField(default=list, blank=True)
+    certifications = models.TextField(blank=True, null=True, default='')
     resume_file = models.FileField(upload_to='resumes/', blank=True, null=True)
     uploaded_at = models.DateTimeField(auto_now_add=True)
     

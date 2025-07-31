@@ -1,0 +1,479 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Privacy Policy - ShortlistPro{% endblock %}
+
+{% block content %}
+<header class="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-gray-100">
+  <nav
+    class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-20"
+    x-data="{ mobileMenu: false }"
+  >
+    <div class="flex items-center">
+      <div class="flex items-center space-x-3">
+        <div class="w-10 h-10 bg-gradient-to-r from-blue-600 to-purple-600 rounded-xl flex items-center justify-center">
+          <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+        </div>
+        <a href="{% url 'home' %}" class="text-2xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">ShortlistPro</a>
+      </div>
+    </div>
+    
+    <!-- Desktop Navigation -->
+    <div class="hidden md:flex items-center space-x-8">
+      <a href="{% url 'home' %}#features" class="text-gray-600 hover:text-gray-900 font-medium transition-colors duration-200">Features</a>
+      <a href="{% url 'home' %}#how-it-works" class="text-gray-600 hover:text-gray-900 font-medium transition-colors duration-200">How it Works</a>
+      <a href="{% url 'pricing' %}" class="text-gray-600 hover:text-gray-900 font-medium transition-colors duration-200">Pricing</a>
+      <a href="{% url 'contact' %}" class="text-gray-600 hover:text-gray-900 font-medium transition-colors duration-200">Contact</a>
+      
+      <div class="flex items-center space-x-3 ml-6 pl-6 border-l border-gray-200">
+        {% if user.is_authenticated %}
+        <div x-data="{ open: false }" class="relative">
+          <button @click="open = !open" class="flex items-center space-x-2 focus:outline-none p-2 rounded-xl hover:bg-gray-50 transition-colors">
+            {% if user.profile.profile_picture %}
+            <img src="{{ user.profile.profile_picture.url }}" alt="User" class="w-8 h-8 rounded-full border-2 border-gray-200" />
+            {% else %}
+            <div class="w-8 h-8 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center text-white text-sm font-medium">
+              {{ user.first_name.0|default:"U" }}
+            </div>
+            {% endif %}
+            <svg class="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          <div x-show="open" @click.away="open = false" x-transition class="absolute right-0 mt-2 w-48 bg-white border border-gray-100 rounded-xl shadow-lg z-50">
+            <div class="px-4 py-3 border-b border-gray-100">
+              <p class="text-sm font-medium text-gray-900">{{ user.get_full_name|default:user.username }}</p>
+              <p class="text-xs text-gray-500">{{ user.email }}</p>
+            </div>
+            <a href="{% url 'dashboard_home' %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">Dashboard</a>
+            <a href="{% url 'profile' %}" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">Profile</a>
+            <form method="post" action="{% url 'logout' %}" class="border-t border-gray-100">
+              {% csrf_token %}
+              <button type="submit" class="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors">Sign Out</button>
+            </form>
+          </div>
+        </div>
+        {% else %}
+        <a href="{% url 'login' %}" class="text-gray-600 hover:text-gray-900 font-medium transition-colors duration-200">Sign In</a>
+        <a href="{% url 'registration_register' %}" class="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-2.5 rounded-xl font-medium hover:shadow-lg transition-all duration-200 transform hover:-translate-y-0.5">Get Started</a>
+        {% endif %}
+      </div>
+    </div>
+    
+    <!-- Mobile Hamburger -->
+    <div class="md:hidden">
+      <button @click="mobileMenu = !mobileMenu" class="p-2 rounded-xl hover:bg-gray-50 transition-colors">
+        <svg :class="{'block': !mobileMenu, 'hidden': mobileMenu}" class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+        <svg :class="{'block': mobileMenu, 'hidden': !mobileMenu}" class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+    
+    <!-- Mobile Menu -->
+    <div x-show="mobileMenu" x-transition:enter="transition ease-out duration-200" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100" x-transition:leave="transition ease-in duration-150" x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-95" class="md:hidden absolute top-20 left-0 right-0 bg-white/95 backdrop-blur-md border-b border-gray-100 shadow-lg">
+      <div class="px-4 py-6 space-y-4">
+        <a href="{% url 'home' %}#features" class="block text-gray-600 hover:text-gray-900 font-medium transition-colors">Features</a>
+        <a href="{% url 'home' %}#how-it-works" class="block text-gray-600 hover:text-gray-900 font-medium transition-colors">How it Works</a>
+        <a href="{% url 'pricing' %}" class="block text-gray-600 hover:text-gray-900 font-medium transition-colors">Pricing</a>
+        <a href="{% url 'contact' %}" class="block text-gray-600 hover:text-gray-900 font-medium transition-colors">Contact</a>
+        
+        <div class="pt-4 border-t border-gray-100">
+          {% if user.is_authenticated %}
+          <div class="flex items-center space-x-3 mb-4">
+            {% if user.profile.profile_picture %}
+            <img src="{{ user.profile.profile_picture.url }}" alt="User" class="w-10 h-10 rounded-full border-2 border-gray-200" />
+            {% else %}
+            <div class="w-10 h-10 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center text-white font-medium">
+              {{ user.first_name.0|default:"U" }}
+            </div>
+            {% endif %}
+            <div>
+              <p class="font-medium text-gray-900">{{ user.get_full_name|default:user.username }}</p>
+              <p class="text-sm text-gray-500">{{ user.email }}</p>
+            </div>
+          </div>
+          <a href="{% url 'dashboard_home' %}" class="block py-2 text-gray-700 hover:text-gray-900 transition-colors">Dashboard</a>
+          <a href="{% url 'profile' %}" class="block py-2 text-gray-700 hover:text-gray-900 transition-colors">Profile</a>
+          <form method="post" action="{% url 'logout' %}" class="pt-2">
+            {% csrf_token %}
+            <button type="submit" class="text-red-600 hover:text-red-700 transition-colors">Sign Out</button>
+          </form>
+          {% else %}
+          <div class="space-y-3">
+            <a href="{% url 'login' %}" class="block w-full text-center py-2 px-4 border border-gray-300 rounded-xl text-gray-700 hover:bg-gray-50 transition-colors">Sign In</a>
+            <a href="{% url 'registration_register' %}" class="block w-full text-center py-2 px-4 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl hover:shadow-lg transition-all">Get Started</a>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </nav>
+</header>
+
+<main>
+<!-- Privacy Policy Hero Section -->
+<section class="bg-gradient-to-br from-blue-50 via-purple-50 to-blue-100 py-20">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+    <div class="inline-flex items-center px-4 py-2 rounded-full bg-white/60 backdrop-blur-sm border border-white/40 text-blue-600 text-sm font-medium mb-6">
+      <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+      </svg>
+      Privacy & Security
+    </div>
+    
+    <h1 class="text-5xl lg:text-7xl font-bold text-gray-900 mb-6">
+      Privacy <span class="text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600">Policy</span>
+    </h1>
+    
+    <p class="text-xl text-gray-600 mb-12 max-w-3xl mx-auto leading-relaxed">
+      Your privacy is our priority. Learn how we collect, use, and protect your personal information.
+    </p>
+    
+    <div class="text-sm text-gray-500">
+      Last updated: July 31, 2025
+    </div>
+  </div>
+</section>
+
+<!-- Privacy Policy Content -->
+<section class="py-24 bg-white">
+  <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="prose prose-lg max-w-none">
+      
+      <!-- Introduction -->
+      <div class="mb-12">
+        <h2 class="text-3xl font-bold text-gray-900 mb-6">Introduction</h2>
+        <p class="text-gray-600 mb-6">
+          At ShortlistPro, we are committed to protecting your privacy and ensuring the security of your personal information. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our recruitment platform and services.
+        </p>
+        <div class="bg-blue-50 border border-blue-200 rounded-xl p-6">
+          <h3 class="text-lg font-semibold text-blue-900 mb-2">Quick Summary</h3>
+          <p class="text-blue-800 text-sm">
+            We collect information to provide you with the best recruitment experience, never sell your data, and use industry-standard security measures to protect your information.
+          </p>
+        </div>
+      </div>
+
+      <!-- Information We Collect -->
+      <div class="mb-12">
+        <h2 class="text-3xl font-bold text-gray-900 mb-6">Information We Collect</h2>
+        
+        <h3 class="text-xl font-semibold text-gray-900 mb-4">Personal Information</h3>
+        <ul class="list-disc list-inside text-gray-600 mb-6 space-y-2">
+          <li>Contact information (name, email address, phone number)</li>
+          <li>Professional information (job title, company, work experience)</li>
+          <li>Account credentials (username, password)</li>
+          <li>Profile information and preferences</li>
+        </ul>
+
+        <h3 class="text-xl font-semibold text-gray-900 mb-4">Resume and Application Data</h3>
+        <ul class="list-disc list-inside text-gray-600 mb-6 space-y-2">
+          <li>Resume content and attachments</li>
+          <li>Education and work history</li>
+          <li>Skills and certifications</li>
+          <li>Application responses and assessments</li>
+        </ul>
+
+        <h3 class="text-xl font-semibold text-gray-900 mb-4">Usage Information</h3>
+        <ul class="list-disc list-inside text-gray-600 mb-6 space-y-2">
+          <li>Platform usage patterns and preferences</li>
+          <li>Device information and browser type</li>
+          <li>IP address and location data</li>
+          <li>Cookies and similar tracking technologies</li>
+        </ul>
+      </div>
+
+      <!-- How We Use Information -->
+      <div class="mb-12">
+        <h2 class="text-3xl font-bold text-gray-900 mb-6">How We Use Your Information</h2>
+        
+        <div class="grid md:grid-cols-2 gap-6 mb-6">
+          <div class="bg-green-50 border border-green-200 rounded-xl p-6">
+            <h4 class="font-semibold text-green-900 mb-3">Service Delivery</h4>
+            <ul class="text-green-800 text-sm space-y-1">
+              <li>• Process and analyze resumes</li>
+              <li>• Match candidates with job opportunities</li>
+              <li>• Facilitate communication between parties</li>
+              <li>• Provide customer support</li>
+            </ul>
+          </div>
+          <div class="bg-purple-50 border border-purple-200 rounded-xl p-6">
+            <h4 class="font-semibold text-purple-900 mb-3">Platform Improvement</h4>
+            <ul class="text-purple-800 text-sm space-y-1">
+              <li>• Enhance AI matching algorithms</li>
+              <li>• Improve user experience</li>
+              <li>• Analyze platform performance</li>
+              <li>• Develop new features</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      <!-- Information Sharing -->
+      <div class="mb-12">
+        <h2 class="text-3xl font-bold text-gray-900 mb-6">Information Sharing and Disclosure</h2>
+        
+        <div class="bg-yellow-50 border border-yellow-200 rounded-xl p-6 mb-6">
+          <h3 class="text-lg font-semibold text-yellow-900 mb-2">Important Note</h3>
+          <p class="text-yellow-800 text-sm">
+            We do not sell, rent, or trade your personal information to third parties for their marketing purposes.
+          </p>
+        </div>
+
+        <h3 class="text-xl font-semibold text-gray-900 mb-4">We may share information in the following circumstances:</h3>
+        <ul class="list-disc list-inside text-gray-600 mb-6 space-y-2">
+          <li><strong>With Employers:</strong> When you apply for jobs or express interest in opportunities</li>
+          <li><strong>Service Providers:</strong> Third-party vendors who assist in providing our services</li>
+          <li><strong>Legal Requirements:</strong> When required by law or to protect our rights</li>
+          <li><strong>Business Transfers:</strong> In connection with mergers, acquisitions, or asset sales</li>
+        </ul>
+      </div>
+
+      <!-- Data Security -->
+      <div class="mb-12">
+        <h2 class="text-3xl font-bold text-gray-900 mb-6">Data Security</h2>
+        <p class="text-gray-600 mb-6">
+          We implement comprehensive security measures to protect your personal information:
+        </p>
+        
+        <div class="grid md:grid-cols-3 gap-4 mb-6">
+          <div class="bg-white border border-gray-200 rounded-xl p-4 text-center">
+            <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
+              <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+            </div>
+            <h4 class="font-semibold text-gray-900 mb-1">Encryption</h4>
+            <p class="text-gray-600 text-sm">Data encrypted in transit and at rest</p>
+          </div>
+          <div class="bg-white border border-gray-200 rounded-xl p-4 text-center">
+            <div class="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
+              <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <h4 class="font-semibold text-gray-900 mb-1">Access Control</h4>
+            <p class="text-gray-600 text-sm">Strict access controls and authentication</p>
+          </div>
+          <div class="bg-white border border-gray-200 rounded-xl p-4 text-center">
+            <div class="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-3">
+              <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+            </div>
+            <h4 class="font-semibold text-gray-900 mb-1">Monitoring</h4>
+            <p class="text-gray-600 text-sm">24/7 security monitoring and alerts</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Your Rights -->
+      <div class="mb-12">
+        <h2 class="text-3xl font-bold text-gray-900 mb-6">Your Rights and Choices</h2>
+        <p class="text-gray-600 mb-6">
+          You have several rights regarding your personal information:
+        </p>
+        
+        <div class="space-y-4">
+          <div class="flex items-start space-x-4 p-4 bg-gray-50 rounded-xl">
+            <div class="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+              <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+              </svg>
+            </div>
+            <div>
+              <h4 class="font-semibold text-gray-900 mb-1">Access</h4>
+              <p class="text-gray-600 text-sm">Request access to your personal information</p>
+            </div>
+          </div>
+          
+          <div class="flex items-start space-x-4 p-4 bg-gray-50 rounded-xl">
+            <div class="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
+              <svg class="w-4 h-4 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+            </div>
+            <div>
+              <h4 class="font-semibold text-gray-900 mb-1">Correction</h4>
+              <p class="text-gray-600 text-sm">Update or correct inaccurate information</p>
+            </div>
+          </div>
+          
+          <div class="flex items-start space-x-4 p-4 bg-gray-50 rounded-xl">
+            <div class="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
+              <svg class="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </div>
+            <div>
+              <h4 class="font-semibold text-gray-900 mb-1">Deletion</h4>
+              <p class="text-gray-600 text-sm">Request deletion of your personal information</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Cookies -->
+      <div class="mb-12">
+        <h2 class="text-3xl font-bold text-gray-900 mb-6">Cookies and Tracking</h2>
+        <p class="text-gray-600 mb-6">
+          We use cookies and similar technologies to enhance your experience and analyze platform usage. You can control cookie preferences through your browser settings.
+        </p>
+        
+        <h3 class="text-xl font-semibold text-gray-900 mb-4">Types of Cookies We Use:</h3>
+        <ul class="list-disc list-inside text-gray-600 mb-6 space-y-2">
+          <li><strong>Essential Cookies:</strong> Required for basic platform functionality</li>
+          <li><strong>Analytics Cookies:</strong> Help us understand how you use our platform</li>
+          <li><strong>Preference Cookies:</strong> Remember your settings and preferences</li>
+        </ul>
+      </div>
+
+      <!-- Contact Information -->
+      <div class="mb-12">
+        <h2 class="text-3xl font-bold text-gray-900 mb-6">Contact Us</h2>
+        <p class="text-gray-600 mb-6">
+          If you have questions about this Privacy Policy or our data practices, please contact us:
+        </p>
+        
+        <div class="bg-blue-50 border border-blue-200 rounded-xl p-6">
+          <div class="grid md:grid-cols-2 gap-6">
+            <div>
+              <h4 class="font-semibold text-blue-900 mb-2">Email</h4>
+              <p class="text-blue-800">
+                <a href="mailto:privacy@shortlistpro.com" class="hover:underline">privacy@shortlistpro.com</a>
+              </p>
+            </div>
+            <div>
+              <h4 class="font-semibold text-blue-900 mb-2">Address</h4>
+              <p class="text-blue-800 text-sm">
+                123 Innovation Drive<br>
+                Tech Valley, CA 94103
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Updates -->
+      <div class="mb-12">
+        <h2 class="text-3xl font-bold text-gray-900 mb-6">Policy Updates</h2>
+        <p class="text-gray-600 mb-4">
+          We may update this Privacy Policy from time to time. We will notify you of any material changes by posting the new Privacy Policy on this page and updating the "Last updated" date.
+        </p>
+        <div class="bg-gray-50 border border-gray-200 rounded-xl p-6">
+          <p class="text-gray-700 text-sm">
+            <strong>Current Version:</strong> 2.0 (Last updated: July 31, 2025)
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Support CTA -->
+<section class="bg-gradient-to-r from-blue-600 via-purple-600 to-blue-800 py-20">
+  <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+    <h2 class="text-4xl lg:text-5xl font-bold text-white mb-6">
+      Questions About Privacy?
+    </h2>
+    <p class="text-xl text-blue-100 mb-8 max-w-2xl mx-auto">
+      Our privacy team is here to help. Contact us for any questions about your data and privacy rights.
+    </p>
+    <div class="flex flex-col sm:flex-row gap-4 justify-center">
+      <a
+        href="{% url 'contact' %}"
+        class="inline-flex items-center justify-center px-8 py-4 bg-white text-blue-600 font-bold rounded-2xl hover:bg-blue-50 transition-all duration-300 transform hover:scale-105"
+      >
+        Contact Privacy Team
+        <svg class="w-5 h-5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+        </svg>
+      </a>
+    </div>
+  </div>
+</section>
+</main>
+
+<!-- Footer -->
+<footer class="bg-gray-900 text-white py-16">
+  <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div class="grid md:grid-cols-4 gap-12">
+      <!-- Company Info -->
+      <div class="col-span-2">
+        <div class="flex items-center mb-6">
+          <div class="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl flex items-center justify-center mr-3">
+            <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          </div>
+          <div class="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+            ShortlistPro
+          </div>
+        </div>
+        <p class="text-gray-400 mb-6 max-w-md leading-relaxed">
+          The future of recruitment is here. Transform your hiring process with AI-powered candidate matching, automated screening, and intelligent interviews.
+        </p>
+        <div class="flex space-x-4">
+          <a href="#" class="w-10 h-10 bg-gray-800 rounded-lg flex items-center justify-center hover:bg-blue-600 transition-colors">
+            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M24 4.557c-.883.392-1.832.656-2.828.775 1.017-.609 1.798-1.574 2.165-2.724-.951.564-2.005.974-3.127 1.195-.897-.957-2.178-1.555-3.594-1.555-3.179 0-5.515 2.966-4.797 6.045-4.091-.205-7.719-2.165-10.148-5.144-1.29 2.213-.669 5.108 1.523 6.574-.806-.026-1.566-.247-2.229-.616-.054 2.281 1.581 4.415 3.949 4.89-.693.188-1.452.232-2.224.084.626 1.956 2.444 3.379 4.6 3.419-2.07 1.623-4.678 2.348-7.29 2.04 2.179 1.397 4.768 2.212 7.548 2.212 9.142 0 14.307-7.721 13.995-14.646.962-.695 1.797-1.562 2.457-2.549z"/>
+            </svg>
+          </a>
+          <a href="#" class="w-10 h-10 bg-gray-800 rounded-lg flex items-center justify-center hover:bg-blue-600 transition-colors">
+            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+            </svg>
+          </a>
+          <a href="#" class="w-10 h-10 bg-gray-800 rounded-lg flex items-center justify-center hover:bg-blue-600 transition-colors">
+            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
+            </svg>
+          </a>
+        </div>
+      </div>
+
+      <!-- Quick Links -->
+      <div>
+        <h3 class="text-lg font-bold mb-6">Quick Links</h3>
+        <ul class="space-y-4">
+          <li><a href="{% url 'home' %}#features" class="text-gray-400 hover:text-white transition-colors">Features</a></li>
+          <li><a href="{% url 'home' %}#how-it-works" class="text-gray-400 hover:text-white transition-colors">How It Works</a></li>
+          <li><a href="{% url 'home' %}#testimonials" class="text-gray-400 hover:text-white transition-colors">Testimonials</a></li>
+          <li><a href="{% url 'home' %}#about" class="text-gray-400 hover:text-white transition-colors">About</a></li>
+        </ul>
+      </div>
+
+      <!-- Support -->
+      <div>
+        <h3 class="text-lg font-bold mb-6">Support</h3>
+        <ul class="space-y-4">
+          <li><a href="{% url 'contact' %}" class="text-gray-400 hover:text-white transition-colors">Contact Support</a></li>
+          <li><a href="{% url 'documentation' %}" class="text-gray-400 hover:text-white transition-colors">Documentation</a></li>
+          <li><a href="{% url 'privacy_policy' %}" class="text-gray-400 hover:text-white transition-colors">Privacy Policy</a></li>
+          <li><a href="{% url 'terms_of_service' %}" class="text-gray-400 hover:text-white transition-colors">Terms of Service</a></li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- Bottom Bar -->
+    <div class="border-t border-gray-800 mt-12 pt-8 flex flex-col md:flex-row justify-between items-center">
+      <div class="text-gray-400 text-sm">
+        © 2025 ShortlistPro. All rights reserved.
+      </div>
+      <div class="flex items-center space-x-6 mt-4 md:mt-0">
+        <span class="text-gray-400 text-sm">Powered by AI</span>
+        <div class="flex items-center space-x-2">
+          <div class="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+          <span class="text-gray-400 text-sm">System Status: Operational</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</footer>
+{% endblock %}

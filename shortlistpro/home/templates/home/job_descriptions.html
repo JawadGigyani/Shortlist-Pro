@@ -2,123 +2,473 @@
 {% block dashboard_title %}
 Job Descriptions
 {% endblock %} 
+
+{% block extra_head %}
+<!-- Quill Editor CSS -->
+<link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+<style>
+  [x-cloak] { display: none !important; }
+  
+  /* Quill content display styles */
+  .ql-editor {
+    line-height: 1.6;
+    font-size: 14px;
+  }
+  
+  /* Styles for displaying Quill content outside editor */
+  .quill-content {
+    line-height: 1.6;
+    font-size: 14px;
+  }
+  
+  .quill-content h1 { font-size: 2em; font-weight: bold; margin: 0.67em 0; }
+  .quill-content h2 { font-size: 1.5em; font-weight: bold; margin: 0.75em 0; }
+  .quill-content h3 { font-size: 1.17em; font-weight: bold; margin: 0.83em 0; }
+  .quill-content h4 { font-size: 1em; font-weight: bold; margin: 1.12em 0; }
+  .quill-content h5 { font-size: 0.83em; font-weight: bold; margin: 1.5em 0; }
+  .quill-content h6 { font-size: 0.75em; font-weight: bold; margin: 1.67em 0; }
+  
+  .quill-content p { margin: 1em 0; }
+  .quill-content br { display: block; margin: 0.5em 0; content: ""; }
+  
+  .quill-content ul, .quill-content ol { 
+    margin: 1em 0; 
+    padding-left: 2em; 
+  }
+  .quill-content ul li { 
+    list-style-type: disc; 
+    margin: 0.5em 0;
+  }
+  .quill-content ol li { 
+    list-style-type: decimal; 
+    margin: 0.5em 0;
+  }
+  
+  .quill-content blockquote { 
+    border-left: 4px solid #ccc; 
+    margin: 1em 0; 
+    padding-left: 1em; 
+    font-style: italic;
+  }
+  
+  .quill-content strong { font-weight: bold; }
+  .quill-content em { font-style: italic; }
+  .quill-content u { text-decoration: underline; }
+  .quill-content s { text-decoration: line-through; }
+  
+  .quill-content pre { 
+    background: #f4f4f4; 
+    border: 1px solid #ddd; 
+    border-radius: 4px; 
+    padding: 1em; 
+    margin: 1em 0; 
+    white-space: pre-wrap;
+  }
+  
+  .quill-content a { 
+    color: #1e40af; 
+    text-decoration: underline; 
+  }
+  
+  .quill-content .ql-align-center { text-align: center; }
+  .quill-content .ql-align-right { text-align: right; }
+  .quill-content .ql-align-justify { text-align: justify; }
+  
+  .quill-content .ql-indent-1 { padding-left: 3em; }
+  .quill-content .ql-indent-2 { padding-left: 6em; }
+  .quill-content .ql-indent-3 { padding-left: 9em; }
+  .quill-content .ql-indent-4 { padding-left: 12em; }
+  .quill-content .ql-indent-5 { padding-left: 15em; }
+  .quill-content .ql-indent-6 { padding-left: 18em; }
+  .quill-content .ql-indent-7 { padding-left: 21em; }
+  .quill-content .ql-indent-8 { padding-left: 24em; }
+</style>
+{% endblock %}
+
 {% block dashboard_content %}
-<div x-data="{ addModal: false, editModal: false, deleteModal: false, editId: null, editTitle: '', editDept: '', editDesc: '', deleteId: null }" @keydown.escape.window="addModal = false; editModal = false; deleteModal = false;">
-  <div class="flex flex-col md:flex-row md:justify-between md:items-center mb-6 gap-4">
-    <h2 class="text-xl font-bold">All Job Descriptions</h2>
-    <button @click="addModal = true" class="px-4 py-2 bg-blue-500 text-white rounded-lg font-semibold shadow hover:bg-blue-600 transition">+ New Job Description</button>
+<div x-data="{
+  addModal: false,
+  editModal: false,
+  deleteModal: false,
+  editId: null,
+  editTitle: '',
+  editDept: '',
+  editDesc: '',
+  deleteId: null,
+  selectedDepartment: '',
+  
+  get uniqueDepartments() {
+    const depts = [];
+    {% for jd in job_descriptions %}
+    if (!depts.includes('{{ jd.department|escapejs }}')) {
+      depts.push('{{ jd.department|escapejs }}');
+    }
+    {% endfor %}
+    return depts.sort();
+  },
+  
+  get hasFilteredResults() {
+    if (!this.selectedDepartment) return true;
+    return this.uniqueDepartments.includes(this.selectedDepartment);
+  },
+  
+  openAddModal() {
+    this.addModal = true;
+    this.$nextTick(() => {
+      setTimeout(() => {
+        window.initAddQuill();
+      }, 100);
+    });
+  },
+  
+  openEditModal(id, title, dept, desc) {
+    this.editModal = true;
+    this.editId = id;
+    this.editTitle = title;
+    this.editDept = dept;
+    this.editDesc = desc;
+    this.$nextTick(() => {
+      setTimeout(() => {
+        window.initEditQuill();
+        if (window.editQuill) {
+          window.editQuill.root.innerHTML = desc;
+        }
+      }, 100);
+    });
+  },
+  
+  closeAddModal() {
+    this.addModal = false;
+    if (window.addQuill) {
+      window.addQuill.setText('');
+    }
+  },
+  
+  closeEditModal() {
+    this.editModal = false;
+    if (window.editQuill) {
+      window.editQuill.setText('');
+    }
+  }
+}" @keydown.escape.window="addModal = false; editModal = false; deleteModal = false;">
+  
+  <!-- Page Header with Gradient -->
+  <div class="bg-gradient-to-r from-blue-600 via-purple-600 to-blue-800 rounded-2xl p-8 mb-8 text-white">
+    <div class="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+      <div>
+        <h1 class="text-3xl font-bold mb-2">Job Descriptions</h1>
+        <p class="text-blue-100">Manage and organize your job postings</p>
+      </div>
+      <button @click="openAddModal()" class="bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300 flex items-center gap-2">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+        </svg>
+        Create New Job Description
+      </button>
+    </div>
+  </div>
+
+  <!-- Stats Cards -->
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-sm font-medium text-gray-600">Total Job Descriptions</p>
+          <p class="text-2xl font-bold text-gray-900">{{ job_descriptions|length }}</p>
+        </div>
+        <div class="bg-blue-100 p-3 rounded-lg">
+          <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+          </svg>
+        </div>
+      </div>
+    </div>
+    
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-sm font-medium text-gray-600">Departments</p>
+          <p class="text-2xl font-bold text-gray-900">{% regroup job_descriptions by department as dept_list %}{{ dept_list|length }}</p>
+        </div>
+        <div class="bg-purple-100 p-3 rounded-lg">
+          <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h1a1 1 0 011 1v5m-4 0h4"/>
+          </svg>
+        </div>
+      </div>
+    </div>
   </div>
   <!-- Add Modal -->
-  <div x-show="addModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40" style="display: none;">
-    <div class="bg-white rounded-lg shadow-lg w-full max-w-lg p-8 relative">
-      <button @click="addModal = false" class="absolute top-2 right-2 text-gray-400 hover:text-gray-700">&times;</button>
-      <h3 class="text-xl font-bold mb-4">Add Job Description</h3>
-      <form method="post">{% csrf_token %}
+  <div x-show="addModal" x-cloak x-transition class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl p-8 relative m-4 max-h-[90vh] overflow-y-auto">
+      <button @click="closeAddModal()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-700 text-2xl">&times;</button>
+      <div class="mb-6">
+        <h3 class="text-2xl font-bold text-gray-900 mb-2">Create Job Description</h3>
+        <p class="text-gray-600">Add a new job posting to start attracting candidates</p>
+      </div>
+      <form method="post" id="addJobForm">{% csrf_token %}
         <input type="hidden" name="add_jd" value="1">
-        <div class="mb-4">
-          <label class="block text-gray-700 font-semibold mb-1">Title</label>
-          <input type="text" name="title" class="w-full border rounded px-3 py-2" required>
+        <input type="hidden" name="description" id="addDescriptionInput">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">Job Title</label>
+            <input type="text" name="title" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all" placeholder="e.g. Senior Software Engineer" required>
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">Department</label>
+            <input type="text" name="department" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all" placeholder="e.g. Engineering" required>
+          </div>
         </div>
-        <div class="mb-4">
-          <label class="block text-gray-700 font-semibold mb-1">Department</label>
-          <input type="text" name="department" class="w-full border rounded px-3 py-2" required>
+        <div class="mb-8">
+          <label class="block text-sm font-semibold text-gray-700 mb-2">Job Description</label>
+          <div id="addQuillEditor" style="height: 300px;" class="border border-gray-300 rounded-xl"></div>
         </div>
-        <div class="mb-6">
-          <label class="block text-gray-700 font-semibold mb-1">Job Description</label>
-          <textarea name="description" rows="6" class="w-full border rounded px-3 py-2 font-mono" placeholder="Enter job description..." required></textarea>
-        </div>
-        <div class="flex justify-end">
-          <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-700">Add</button>
+        <div class="flex justify-end gap-3">
+          <button type="button" @click="closeAddModal()" class="px-6 py-3 text-gray-700 bg-gray-100 rounded-xl font-semibold hover:bg-gray-200 transition-all">Cancel</button>
+          <button type="submit" class="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold hover:from-blue-700 hover:to-purple-700 transition-all shadow-lg">Create Job Description</button>
         </div>
       </form>
     </div>
   </div>
 
   <!-- Edit Modal -->
-  <div x-show="editModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40" style="display: none;">
-    <div class="bg-white rounded-lg shadow-lg w-full max-w-lg p-8 relative">
-      <button @click="editModal = false" class="absolute top-2 right-2 text-gray-400 hover:text-gray-700">&times;</button>
-      <h3 class="text-xl font-bold mb-4">Edit Job Description</h3>
-      <form method="post">
+  <div x-show="editModal" x-cloak x-transition class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl p-8 relative m-4 max-h-[90vh] overflow-y-auto">
+      <button @click="closeEditModal()" class="absolute top-4 right-4 text-gray-400 hover:text-gray-700 text-2xl">&times;</button>
+      <div class="mb-6">
+        <h3 class="text-2xl font-bold text-gray-900 mb-2">Edit Job Description</h3>
+        <p class="text-gray-600">Update the job details and requirements</p>
+      </div>
+      <form method="post" id="editJobForm">
         {% csrf_token %}
         <input type="hidden" name="edit_jd_id" :value="editId">
-        <div class="mb-4">
-          <label class="block text-gray-700 font-semibold mb-1">Title</label>
-          <input type="text" name="title" class="w-full border rounded px-3 py-2" x-model="editTitle" required>
+        <input type="hidden" name="description" id="editDescriptionInput">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">Job Title</label>
+            <input type="text" name="title" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all" x-model="editTitle" required>
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">Department</label>
+            <input type="text" name="department" class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all" x-model="editDept" required>
+          </div>
         </div>
-        <div class="mb-4">
-          <label class="block text-gray-700 font-semibold mb-1">Department</label>
-          <input type="text" name="department" class="w-full border rounded px-3 py-2" x-model="editDept" required>
+        <div class="mb-8">
+          <label class="block text-sm font-semibold text-gray-700 mb-2">Job Description</label>
+          <div id="editQuillEditor" style="height: 300px;" class="border border-gray-300 rounded-xl"></div>
         </div>
-        <div class="mb-6">
-          <label class="block text-gray-700 font-semibold mb-1">Job Description</label>
-          <textarea name="description" rows="6" class="w-full border rounded px-3 py-2 font-mono" x-model="editDesc" required></textarea>
-        </div>
-        <div class="flex justify-end">
-          <button type="submit" class="bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-blue-700">Save</button>
+        <div class="flex justify-end gap-3">
+          <button type="button" @click="closeEditModal()" class="px-6 py-3 text-gray-700 bg-gray-100 rounded-xl font-semibold hover:bg-gray-200 transition-all">Cancel</button>
+          <button type="submit" class="px-6 py-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold hover:from-blue-700 hover:to-purple-700 transition-all shadow-lg">Update Job Description</button>
         </div>
       </form>
     </div>
   </div>
 
-  <!-- JD Table -->
-  <div class="bg-white rounded-xl shadow p-6 border border-gray-200">
-    <table class="min-w-full divide-y divide-gray-200">
-      <thead>
-        <tr>
-          <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Title</th>
-          <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Department</th>
-          <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Created</th>
-          <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Actions</th>
-        </tr>
-      </thead>
-      <tbody x-data="{ expandedRow: null }">
-        {% for jd in job_descriptions %}
-        <tr>
-          <td class="px-4 py-2 flex items-center gap-2">
-            <span class="cursor-pointer flex items-center gap-2" @click="expandedRow === {{ jd.id }} ? expandedRow = null : expandedRow = {{ jd.id }}">
-              <svg :class="expandedRow === {{ jd.id }} ? 'rotate-90 text-blue-500' : 'text-gray-400'" class="w-4 h-4 transition-transform duration-200" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" /></svg>
-              <span class="font-semibold">{{ jd.title }}</span>
-            </span>
-          </td>
-          <td class="px-4 py-2">{{ jd.department }}</td>
-          <td class="px-4 py-2">{{ jd.created_at|date:'M d, Y' }}</td>
-          <td class="px-4 py-2">
-            <div class="flex gap-2">
-              <button @click.prevent="editModal = true; editId = '{{ jd.id }}'; editTitle = '{{ jd.title|escapejs }}'; editDept = '{{ jd.department|escapejs }}'; editDesc = `{{ jd.description|escapejs }}`;" class="px-3 py-1 bg-blue-100 text-blue-600 rounded hover:bg-blue-200">Edit</button>
-              <button @click="deleteId = {{ jd.id }}" class="px-3 py-1 bg-red-100 text-red-600 rounded hover:bg-red-200">Delete</button>
+  <!-- Job Descriptions List -->
+  <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+    <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
+      <div class="flex items-center justify-between">
+        <h3 class="text-lg font-semibold text-gray-900">Job Descriptions</h3>
+        {% if job_descriptions %}
+        <div class="flex items-center gap-3">
+          <label class="text-sm font-medium text-gray-700">Filter by Department:</label>
+          <select x-model="selectedDepartment" class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all min-w-[180px]">
+            <option value="">All Departments</option>
+            <template x-for="dept in uniqueDepartments" :key="dept">
+              <option :value="dept" x-text="dept"></option>
+            </template>
+          </select>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+    
+    {% if job_descriptions %}
+    <div class="divide-y divide-gray-200">
+      {% for jd in job_descriptions %}
+      <div x-data="{ expanded: false }" x-show="!selectedDepartment || selectedDepartment === '{{ jd.department|escapejs }}'" class="p-6 hover:bg-gray-50 transition-colors">
+        <div class="flex items-center justify-between">
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-3 mb-2">
+              <button @click="expanded = !expanded" class="flex items-center gap-2 text-left">
+                <svg :class="expanded ? 'rotate-90' : ''" class="w-4 h-4 text-gray-400 transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+                </svg>
+                <h4 class="text-lg font-semibold text-gray-900 hover:text-blue-600 transition-colors">{{ jd.title }}</h4>
+              </button>
+              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                {{ jd.department }}
+              </span>
             </div>
-          </td>
-        </tr>
-        <tr x-show="expandedRow === {{ jd.id }}" style="display: none;">
-          <td colspan="4" class="bg-gray-50 px-4 py-4 text-gray-700 whitespace-pre-line border-t">
-            <div class="font-semibold mb-2">Job Description:</div>
-            <div class="prose max-w-none">{{ jd.description|linebreaksbr }}</div>
-          </td>
-        </tr>
-        {% empty %}
-        <tr><td colspan="4" class="text-center text-gray-400 py-4">No job descriptions yet.</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
+            <p class="text-sm text-gray-500 flex items-center gap-1">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3a2 2 0 012-2h4a2 2 0 012 2v4m-6 9l6-6m0 0v6m0-6H6"/>
+              </svg>
+              Created {{ jd.created_at|date:'M d, Y' }}
+            </p>
+          </div>
+          <div class="flex items-center gap-2">
+            <button @click.prevent="openEditModal('{{ jd.id }}', '{{ jd.title|escapejs }}', '{{ jd.department|escapejs }}', `{{ jd.description|escapejs }}`);" class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-100 rounded-lg hover:bg-blue-200 transition-colors">
+              <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+              </svg>
+              Edit
+            </button>
+            <button @click="deleteModal = true; deleteId = {{ jd.id }}" class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-red-600 bg-red-100 rounded-lg hover:bg-red-200 transition-colors">
+              <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+              </svg>
+              Delete
+            </button>
+          </div>
+        </div>
+        
+        <div x-show="expanded" x-transition class="mt-4 pt-4 border-t border-gray-200">
+          <div class="bg-gray-50 rounded-xl p-4">
+            <h5 class="font-semibold text-gray-900 mb-3">Job Description:</h5>
+            <div class="quill-content text-gray-700">{{ jd.description|safe }}</div>
+          </div>
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    
+    <!-- No results found message when filtering -->
+    <div x-show="selectedDepartment && !hasFilteredResults" class="text-center py-16">
+      <svg class="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+      </svg>
+      <h3 class="text-lg font-medium text-gray-900 mb-2">No job descriptions found</h3>
+      <p class="text-gray-500 mb-6">No job descriptions match the selected department filter.</p>
+      <button @click="selectedDepartment = ''" class="inline-flex items-center px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold hover:from-blue-700 hover:to-purple-700 transition-all shadow-lg">
+        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+        </svg>
+        Clear Filter
+      </button>
+    </div>
+    
+    {% else %}
+    <div class="text-center py-16">
+      <svg class="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+      </svg>
+      <h3 class="text-lg font-medium text-gray-900 mb-2">No job descriptions yet</h3>
+      <p class="text-gray-500 mb-6">Get started by creating your first job description</p>
+      <button @click="openAddModal()" class="inline-flex items-center px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold hover:from-blue-700 hover:to-purple-700 transition-all shadow-lg">
+        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/>
+        </svg>
+        Create Job Description
+      </button>
+    </div>
+    {% endif %}
   </div>
 
   <!-- Delete Confirmation Modal -->
-  <div x-show="deleteId !== null" class="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40" style="display: none;">
-    <div class="bg-white rounded-lg shadow-lg w-full max-w-sm p-6 relative">
-      <h3 class="text-lg font-bold mb-4">Are you sure?</h3>
-      <p class="text-gray-600 mb-6">This will permanently delete the job description.</p>
-      <div class="grid grid-cols-2 gap-4">
-        <button @click="deleteId = null" class="w-full py-2 bg-green-500 text-white font-semibold rounded hover:bg-green-600">No</button>
-        <form method="post" x-show="deleteId !== null">
-          {% csrf_token %}
-          <input type="hidden" name="delete_jd_id" :value="deleteId">
-          <button type="submit" class="w-full py-2 bg-red-600 text-white font-semibold rounded hover:bg-red-700">Yes</button>
-        </form>
+  <div x-show="deleteModal" x-cloak x-transition class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 relative m-4">
+      <div class="text-center">
+        <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
+          <svg class="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+          </svg>
+        </div>
+        <h3 class="text-lg font-semibold text-gray-900 mb-2">Delete Job Description</h3>
+        <p class="text-gray-600 mb-6">Are you sure you want to delete this job description? This action cannot be undone.</p>
+        <div class="flex gap-3 justify-center">
+          <button @click="deleteModal = false; deleteId = null" class="px-6 py-3 text-gray-700 bg-gray-100 rounded-xl font-semibold hover:bg-gray-200 transition-all">Cancel</button>
+          <form method="post" x-show="deleteModal" class="inline">
+            {% csrf_token %}
+            <input type="hidden" name="delete_jd_id" :value="deleteId">
+            <button type="submit" class="px-6 py-3 bg-red-600 text-white rounded-xl font-semibold hover:bg-red-700 transition-all">Delete</button>
+          </form>
+        </div>
       </div>
     </div>
   </div>
 
-<!-- Duplicate job descriptions table removed -->
-<script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+</div>
+
+<!-- Quill Editor JavaScript -->
+<script src="https://cdn.quilljs.com/1.3.6/quill.min.js"></script>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  let addQuill = null;
+  let editQuill = null;
+
+  // Function to initialize Add modal Quill editor
+  window.initAddQuill = function() {
+    if (!addQuill && document.getElementById('addQuillEditor')) {
+      addQuill = new Quill('#addQuillEditor', {
+        theme: 'snow',
+        placeholder: 'Describe the role, responsibilities, requirements, and qualifications...',
+        formats: ['header', 'bold', 'italic', 'underline', 'strike', 'blockquote', 'list', 'bullet', 'indent', 'link', 'color', 'background', 'align', 'code-block'],
+        modules: {
+          toolbar: [
+            [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
+            ['bold', 'italic', 'underline', 'strike'],
+            [{ 'color': [] }, { 'background': [] }],
+            [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+            [{ 'indent': '-1'}, { 'indent': '+1' }],
+            [{ 'align': [] }],
+            ['blockquote', 'code-block'],
+            ['link'],
+            ['clean']
+          ],
+          clipboard: {
+            // Allow all formats to be pasted
+            matchVisual: false
+          }
+        }
+      });
+      
+      window.addQuill = addQuill;
+    }
+  };
+
+  // Function to initialize Edit modal Quill editor
+  window.initEditQuill = function() {
+    if (!editQuill && document.getElementById('editQuillEditor')) {
+      editQuill = new Quill('#editQuillEditor', {
+        theme: 'snow',
+        placeholder: 'Describe the role, responsibilities, requirements, and qualifications...',
+        formats: ['header', 'bold', 'italic', 'underline', 'strike', 'blockquote', 'list', 'bullet', 'indent', 'link', 'color', 'background', 'align', 'code-block'],
+        modules: {
+          toolbar: [
+            [{ 'header': [1, 2, 3, 4, 5, 6, false] }],
+            ['bold', 'italic', 'underline', 'strike'],
+            [{ 'color': [] }, { 'background': [] }],
+            [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+            [{ 'indent': '-1'}, { 'indent': '+1' }],
+            [{ 'align': [] }],
+            ['blockquote', 'code-block'],
+            ['link'],
+            ['clean']
+          ],
+          clipboard: {
+            // Allow all formats to be pasted
+            matchVisual: false
+          }
+        }
+      });
+      
+      window.editQuill = editQuill;
+    }
+  };
+
+  // Handle form submissions
+  document.addEventListener('submit', function(e) {
+    if (e.target.id === 'addJobForm' && window.addQuill) {
+      document.getElementById('addDescriptionInput').value = window.addQuill.root.innerHTML;
+    }
+    if (e.target.id === 'editJobForm' && window.editQuill) {
+      document.getElementById('editDescriptionInput').value = window.editQuill.root.innerHTML;
+    }
+  });
+});
+</script>
+
 {% endblock %}
