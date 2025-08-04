@@ -6,6 +6,8 @@ langchain_groq
 langchain_core
 python-dotenv
 python-docx
+docx2txt
+unstructured
 PyPDF2
 PyMuPDF
 pydantic

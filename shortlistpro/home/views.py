@@ -29,6 +29,7 @@ from django.contrib import messages
 from django.contrib.auth.forms import PasswordChangeForm
 from django.contrib.auth import update_session_auth_hash
 from django.shortcuts import redirect
+from django.http import JsonResponse
 from .forms import UserForm, ProfileForm, JobDescriptionForm, ResumeForm
 from .models import Resume, Shortlisted, Interview, JobDescription
 from django.utils import timezone
@@ -256,17 +257,41 @@ def resumes(request):
     job_descriptions = JobDescription.objects.filter(user=request.user).prefetch_related('resumes').order_by('-created_at')
     
     if request.method == 'POST':
+        # Check if it's an AJAX request
+        is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+        
         if 'bulk_upload' in request.POST:
             jd_id = request.POST.get('jd_id')
             jd = JobDescription.objects.filter(id=jd_id, user=request.user).first()
             files = request.FILES.getlist('resume_files')
             
             if not jd:
-                messages.error(request, 'Please select a valid job description.')
+                error_msg = 'Please select a valid job description.'
+                if is_ajax:
+                    return JsonResponse({'success': False, 'error': error_msg})
+                messages.error(request, error_msg)
                 return redirect('resumes')
             
             if not files:
-                messages.error(request, 'Please select at least one resume file.')
+                error_msg = 'Please select at least one resume file.'
+                if is_ajax:
+                    return JsonResponse({'success': False, 'error': error_msg})
+                messages.error(request, error_msg)
+                return redirect('resumes')
+            
+            # Validate file extensions
+            supported_extensions = ['.pdf', '.doc', '.docx']
+            invalid_files = []
+            for f in files:
+                file_ext = '.' + f.name.split('.')[-1].lower() if '.' in f.name else ''
+                if file_ext not in supported_extensions:
+                    invalid_files.append(f.name)
+            
+            if invalid_files:
+                error_msg = f"Unsupported file format: {', '.join(invalid_files)}. Only PDF, DOC, and DOCX files are allowed."
+                if is_ajax:
+                    return JsonResponse({'success': False, 'error': error_msg})
+                messages.error(request, error_msg)
                 return redirect('resumes')
             
             # Send files to FastAPI for parsing (one by one)
@@ -345,8 +370,8 @@ def resumes(request):
                             resume, created = Resume.objects.update_or_create(
                                 user=request.user,
                                 email=basic_info.get('email', 'no-email@example.com'),
+                                jobdescription=jd,  # Include JD in lookup to allow same candidate for multiple JDs
                                 defaults={
-                                    'jobdescription': jd,
                                     # Basic Info
                                     'candidate_name': basic_info.get('full_name', 'Unknown'),
                                     'phone': basic_info.get('phone', ''),
@@ -383,15 +408,66 @@ def resumes(request):
                 # Show results
                 failed_parses = [result for result in parsed_data if result.get('status') == 'error']
                 
-                if successful_saves > 0:
-                    messages.success(request, f'Successfully processed and saved {successful_saves} resume(s) for {jd.title}!')
-                
-                if failed_parses:
-                    for failed in failed_parses:
-                        messages.error(request, f"Failed to parse {failed.get('filename', 'unknown file')}: {failed.get('message', 'Unknown error')}")
-                
-                # Redirect to avoid showing temporary parsing results
-                return redirect('resumes')
+                if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                    # AJAX request - return JSON response
+                    if successful_saves > 0 and not failed_parses:
+                        return JsonResponse({
+                            'success': True,
+                            'type': 'success',
+                            'message': f'Successfully processed and saved {successful_saves} resume(s) for {jd.title}!'
+                        })
+                    elif successful_saves > 0 and failed_parses:
+                        failed_files = [failed.get('filename', 'unknown file') for failed in failed_parses]
+                        return JsonResponse({
+                            'success': True,
+                            'type': 'warning',
+                            'message': f'Successfully processed {successful_saves} resume(s) for {jd.title}. Failed to parse: {", ".join(failed_files)}'
+                        })
+                    else:
+                        failed_files = [failed.get('filename', 'unknown file') for failed in failed_parses]
+                        # Check if the failures are due to unsupported formats
+                        format_errors = []
+                        parsing_errors = []
+                        
+                        for failed in failed_parses:
+                            error_msg = failed.get('message', '')
+                            filename = failed.get('filename', 'unknown file')
+                            
+                            # Check if it's a format-related error
+                            if ('Only PDF files are supported' in error_msg or 
+                                'unsupported' in error_msg.lower() or 
+                                'format' in error_msg.lower() or
+                                filename.lower().endswith(('.doc', '.docx', '.txt', '.jpg', '.png'))):
+                                format_errors.append(filename)
+                            else:
+                                parsing_errors.append(filename)
+                        
+                        if format_errors and not parsing_errors:
+                            # All errors are format-related
+                            message = f'Unsupported file format: {", ".join(format_errors)}. Please upload only PDF, DOC, or DOCX files.'
+                        elif format_errors and parsing_errors:
+                            # Mixed errors
+                            message = f'Upload failed: Unsupported formats ({", ".join(format_errors)}) and parsing errors ({", ".join(parsing_errors)}). Please upload only PDF, DOC, or DOCX files.'
+                        else:
+                            # All are parsing errors
+                            message = f'Failed to parse files: {", ".join(failed_files)}. Please ensure files are valid and not corrupted.'
+                        
+                        return JsonResponse({
+                            'success': False,
+                            'type': 'error',
+                            'message': message
+                        })
+                else:
+                    # Regular form submission - use messages
+                    if successful_saves > 0:
+                        messages.success(request, f'Successfully processed and saved {successful_saves} resume(s) for {jd.title}!')
+                    
+                    if failed_parses:
+                        for failed in failed_parses:
+                            messages.error(request, f"Failed to parse {failed.get('filename', 'unknown file')}: {failed.get('message', 'Unknown error')}")
+                    
+                    # Redirect to avoid showing temporary parsing results
+                    return redirect('resumes')
                 
             except Exception as e:
                 messages.error(request, f"Unexpected error processing resumes: {str(e)}")

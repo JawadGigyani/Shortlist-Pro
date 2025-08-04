@@ -56,11 +56,11 @@ class Resume(models.Model):
     uploaded_at = models.DateTimeField(auto_now_add=True)
     
     class Meta:
-        # Ensure that each user can only have one resume per email address
+        # Ensure that each user can only have one resume per email address per job description
         constraints = [
             models.UniqueConstraint(
-                fields=['user', 'email'], 
-                name='unique_user_email_resume',
+                fields=['user', 'email', 'jobdescription'], 
+                name='unique_user_email_jd_resume',
                 condition=~models.Q(email='no-email@example.com')  # Exclude default email from uniqueness
             )
         ]

@@ -8,7 +8,7 @@ from langchain.prompts import PromptTemplate
 from pydantic import BaseModel, Field
 from langchain_core.output_parsers import JsonOutputParser
 from typing import List, Optional, Dict, Any
-from langchain_community.document_loaders import PDFPlumberLoader
+from langchain_community.document_loaders import PDFPlumberLoader, Docx2txtLoader, UnstructuredWordDocumentLoader
 import uvicorn
 
 from dotenv import load_dotenv
@@ -149,18 +149,44 @@ def process_resume_file(file_path: str) -> ResumeData:
         Exception: If parsing fails at any stage
     """
     try:
-        # Load the PDF file
-        loader = PDFPlumberLoader(file_path)
-        docs = loader.load()
+        # Determine file type and use appropriate loader
+        file_extension = file_path.lower().split('.')[-1]
         
-        if not docs:
-            raise Exception("Could not extract text from PDF file")
+        if file_extension == 'pdf':
+            loader = PDFPlumberLoader(file_path)
+            docs = loader.load()
+            if not docs:
+                raise Exception("Could not extract text from PDF file")
+        elif file_extension in ['docx']:
+            try:
+                loader = Docx2txtLoader(file_path)
+                docs = loader.load()
+                if not docs:
+                    raise Exception("Could not extract text from DOCX file")
+            except Exception:
+                # Fallback to UnstructuredWordDocumentLoader
+                try:
+                    loader = UnstructuredWordDocumentLoader(file_path)
+                    docs = loader.load()
+                    if not docs:
+                        raise Exception("Could not extract text from DOCX file")
+                except Exception as e:
+                    raise Exception(f"Failed to process DOCX file: {str(e)}")
+        elif file_extension in ['doc']:
+            try:
+                loader = UnstructuredWordDocumentLoader(file_path)
+                docs = loader.load()
+                if not docs:
+                    raise Exception("Could not extract text from DOC file")
+            except Exception as e:
+                raise Exception(f"Failed to process DOC file: {str(e)}")
+        else:
+            raise Exception(f"Unsupported file format: .{file_extension}. Only PDF, DOC, and DOCX files are supported.")
         
         resume_text = "\n\n".join([doc.page_content for doc in docs])
         
-        
         if not resume_text.strip():
-            raise Exception("PDF file appears to be empty or contains no readable text")
+            raise Exception(f"File appears to be empty or contains no readable text")
         
         # Stage 1: Initial parsing
         initial_parse_prompt = f"Parse the attached resume and return JSON: {resume_text}"
@@ -282,7 +308,7 @@ async def parse_resume(file: UploadFile = File(...)):
     Parse a single resume file and return structured data
     
     Args:
-        file: The uploaded resume file (PDF)
+        file: The uploaded resume file (PDF, DOC, or DOCX)
         
     Returns:
         ParseResponse: Contains parsed data or error information
@@ -291,18 +317,28 @@ async def parse_resume(file: UploadFile = File(...)):
     print(f"Received file: {file.filename}, size: {file.size if hasattr(file, 'size') else 'unknown'}")
     
     # Validate file type
-    if not file.filename or not file.filename.lower().endswith('.pdf'):
+    if not file.filename:
         raise HTTPException(
             status_code=400, 
-            detail="Only PDF files are supported for resume parsing"
+            detail="No filename provided"
+        )
+    
+    file_extension = file.filename.lower().split('.')[-1] if '.' in file.filename else ''
+    supported_extensions = ['pdf', 'doc', 'docx']
+    
+    if file_extension not in supported_extensions:
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Unsupported file format: .{file_extension}. Only PDF, DOC, and DOCX files are supported."
         )
     
     # Create a temporary file to store the uploaded content
     temp_file = None
     temp_file_path = None
     try:
-        # Create temporary file
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.pdf') as temp_file:
+        # Create temporary file with appropriate extension
+        suffix = f'.{file_extension}'
+        with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as temp_file:
             content = await file.read()
             if not content:
                 raise Exception("Uploaded file is empty")
