@@ -73,6 +73,18 @@ class Certification(BaseModel):
     credential_url: Optional[str] = Field(None, description="Verification URL if available")
     credential_id: Optional[str] = Field(None, description="Certificate ID if available")
 
+class ExtracurricularActivity(BaseModel):
+    """Individual extracurricular activity entry"""
+    title: str = Field("", description="Activity title or role")
+    organization: str = Field("", description="Organization, club, or community name")
+    activity_type: str = Field("", description="Type: Volunteer Work, Club/Society, Community Service, Sports, Leadership, etc.")
+    start_date: str = Field("", description="MM/YYYY or YYYY format")
+    end_date: str = Field("", description="MM/YYYY or 'Present'")
+    location: Optional[str] = Field(None, description="City, Country")
+    description: str = Field("", description="Brief description of activities and achievements")
+    skills_gained: List[str] = Field(default_factory=list, description="Skills developed through this activity")
+    achievements: List[str] = Field(default_factory=list, description="Notable achievements or recognition")
+
 class AdditionalInfo(BaseModel):
     """Additional information about the candidate"""
     availability: Optional[str] = Field(None, description="Notice period/availability")
@@ -89,6 +101,7 @@ class ResumeData(BaseModel):
     education: List[Education] = Field(default_factory=list, description="Education entries")
     projects: List[Project] = Field(default_factory=list, description="Project entries")
     certifications: List[Certification] = Field(default_factory=list, description="Certification entries")
+    extracurricular: List[ExtracurricularActivity] = Field(default_factory=list, description="Extracurricular activities including volunteer work")
     additional_info: AdditionalInfo = Field(default_factory=AdditionalInfo, description="Additional candidate information")
 
 class ParseResponse(BaseModel):
@@ -184,10 +197,11 @@ DATA CORRECTION OBJECTIVES:
 CRITICAL CORRECTION RULES:
 
 📋 SECTION CLASSIFICATION FIXES:
-- Move volunteer work from work_experience to appropriate sections
+- Move volunteer work, community service, club activities from work_experience to extracurricular section
 - Move certifications/courses from work_experience to certifications
-- Ensure only actual employment appears in work_experience
+- Ensure only actual paid employment appears in work_experience
 - Verify education entries are in correct format
+- Classify extracurricular activities by type: Volunteer Work, Club/Society, Community Service, Sports, Leadership, etc.
 
 📅 DATE & DURATION CORRECTIONS:
 - Standardize all dates to MM/YYYY format (e.g., "Nov 2023" → "11/2023")

@@ -305,6 +305,7 @@ def resumes(request):
                             'education': data.get('education', []),
                             'work_experience': data.get('work_experience', []),
                             'certifications': data.get('certifications', []),
+                            'extracurricular': data.get('extracurricular', []),
                         }
                     else:
                         result = {
@@ -363,6 +364,7 @@ def resumes(request):
                                     'education': data.get('education', []),
                                     'projects': data.get('projects', []),
                                     'certifications': data.get('certifications', []),
+                                    'extracurricular': data.get('extracurricular', []),
                                     # Additional Info
                                     'availability': additional_info.get('availability', ''),
                                     'willing_to_relocate': additional_info.get('willing_to_relocate', ''),

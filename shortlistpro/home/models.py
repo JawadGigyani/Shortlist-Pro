@@ -43,6 +43,7 @@ class Resume(models.Model):
     education = models.JSONField(blank=True, null=True, default=list)  # List of education entries
     projects = models.JSONField(blank=True, null=True, default=list)  # List of project entries
     certifications = models.JSONField(blank=True, null=True, default=list)  # List of certification entries
+    extracurricular = models.JSONField(blank=True, null=True, default=list)  # List of extracurricular activities
     
     # Additional Info
     availability = models.CharField(max_length=100, blank=True, null=True)
