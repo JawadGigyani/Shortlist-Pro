@@ -9,3 +9,7 @@ python-docx
 PyPDF2
 PyMuPDF
 pydantic
+langchain_community
+langchain_google_genai
+langgraph
+pdfplumber

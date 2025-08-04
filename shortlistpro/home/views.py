@@ -269,89 +269,112 @@ def resumes(request):
                 messages.error(request, 'Please select at least one resume file.')
                 return redirect('resumes')
             
-            # Send files to FastAPI for parsing
+            # Send files to FastAPI for parsing (one by one)
             fastapi_url = 'http://127.0.0.1:8001/parse-resumes'
-            files_payload = []
+            parsed_data = []
+            
             for f in files:
-                files_payload.append(('files', (f.name, f.read(), f.content_type)))
+                try:
+                    # Reset file pointer for each file
+                    f.seek(0)
+                    files_payload = {'file': (f.name, f.read(), f.content_type)}
+                    
+                    response = requests.post(fastapi_url, files=files_payload)
+                    response.raise_for_status()
+                    api_response = response.json()
+                    
+                    # Convert FastAPI response to expected format
+                    if api_response.get('success'):
+                        data = api_response.get('data', {})
+                        basic_info = data.get('basic_info', {})
+                        professional_summary = data.get('professional_summary', {})
+                        additional_info = data.get('additional_info', {})
+                        
+                        result = {
+                            'status': 'success',
+                            'filename': api_response.get('filename'),
+                            'full_data': data,  # Store the complete data
+                            'basic_info': basic_info,
+                            'professional_summary': professional_summary,
+                            'additional_info': additional_info,
+                            # Flattened for backward compatibility
+                            'full_name': basic_info.get('full_name', 'Unknown'),
+                            'email': basic_info.get('email', 'no-email@example.com'),
+                            'phone': basic_info.get('phone', ''),
+                            'skills': data.get('skills', []),
+                            'education': data.get('education', []),
+                            'work_experience': data.get('work_experience', []),
+                            'certifications': data.get('certifications', []),
+                        }
+                    else:
+                        result = {
+                            'status': 'error',
+                            'filename': api_response.get('filename'),
+                            'message': api_response.get('error')
+                        }
+                    parsed_data.append(result)
+                    
+                except requests.exceptions.ConnectionError:
+                    parsed_data.append({
+                        'status': 'error',
+                        'filename': f.name,
+                        'message': 'Cannot connect to resume parser service'
+                    })
+                except Exception as e:
+                    parsed_data.append({
+                        'status': 'error',
+                        'filename': f.name,
+                        'message': str(e)
+                    })
             
             try:
-                response = requests.post(fastapi_url, files=files_payload)
-                response.raise_for_status()
-                api_response = response.json()
-                parsed_data = api_response.get('results', [])
                 
                 # Process successful parses and save to database
                 successful_saves = 0
                 for result in parsed_data:
                     if result.get('status') == 'success':
                         try:
-                            # Extract skills as comma-separated string
-                            skills_list = result.get('skills', [])
-                            skills_parts = []
-                            if skills_list:
-                                for skill in skills_list:
-                                    if isinstance(skill, dict):
-                                        skills_parts.append(skill.get('name', str(skill)))
-                                    else:
-                                        skills_parts.append(str(skill))
-                            skills_str = ', '.join(skills_parts) if skills_parts else ''
+                            # Use data from the current result
+                            basic_info = result.get('basic_info', {})
+                            professional_summary = result.get('professional_summary', {})
+                            additional_info = result.get('additional_info', {})
+                            data = result.get('full_data', {})
                             
-                            # Extract education as text
-                            education_list = result.get('education', [])
-                            education_parts = []
-                            if education_list:
-                                for edu in education_list:
-                                    if isinstance(edu, dict):
-                                        edu_text = f"{edu.get('degree', '')} in {edu.get('major', '')}" if edu.get('major') else edu.get('degree', '')
-                                        if edu.get('university_name'):
-                                            edu_text += f" from {edu.get('university_name')}"
-                                        if edu.get('end_year'):
-                                            edu_text += f" ({edu.get('end_year')})"
-                                        education_parts.append(edu_text.strip())
-                                    else:
-                                        education_parts.append(str(edu))
-                            education_str = '; '.join(education_parts) if education_parts else ''
-                            
-                            # Extract experience as text
-                            experience_list = result.get('work_experience', [])
-                            exp_parts = []
-                            if experience_list:
-                                for exp in experience_list:
-                                    if isinstance(exp, dict):
-                                        exp_text = f"{exp.get('job_title', 'Unknown Position')} at {exp.get('company_name', 'Unknown Company')}"
-                                        if exp.get('start_date') or exp.get('end_date'):
-                                            exp_text += f" ({exp.get('start_date', '')} - {exp.get('end_date', '')})"
-                                        exp_parts.append(exp_text)
-                                    else:
-                                        exp_parts.append(str(exp))
-                            experience_str = '; '.join(exp_parts) if exp_parts else ''
-                            
-                            # Extract certifications as text
-                            certifications_list = result.get('certifications', [])
-                            cert_parts = []
-                            if certifications_list:
-                                for cert in certifications_list:
-                                    if isinstance(cert, dict):
-                                        cert_parts.append(cert.get('name', str(cert)))
-                                    else:
-                                        cert_parts.append(str(cert))
-                            certifications_str = ', '.join(cert_parts) if cert_parts else ''
-                            
-                            # Create Resume object with parsed data
-                            Resume.objects.create(
+                            # Update or create Resume object with full structured data
+                            resume, created = Resume.objects.update_or_create(
                                 user=request.user,
-                                jobdescription=jd,
-                                candidate_name=result.get('full_name', 'Unknown'),
-                                email=result.get('email', 'no-email@example.com'),
-                                phone=result.get('phone', ''),
-                                skills=skills_str,
-                                education=education_str,
-                                experience=experience_str,
-                                certifications=certifications_str,
-                                # Note: We're not saving the file here as it was already processed
+                                email=basic_info.get('email', 'no-email@example.com'),
+                                defaults={
+                                    'jobdescription': jd,
+                                    # Basic Info
+                                    'candidate_name': basic_info.get('full_name', 'Unknown'),
+                                    'phone': basic_info.get('phone', ''),
+                                    'location': basic_info.get('location', ''),
+                                    'linkedin_url': basic_info.get('linkedin_url', ''),
+                                    'github_url': basic_info.get('github_url', ''),
+                                    'portfolio_url': basic_info.get('portfolio_url', ''),
+                                    # Professional Summary
+                                    'professional_summary': professional_summary.get('summary', ''),
+                                    'career_level': professional_summary.get('career_level', 'Entry-level'),
+                                    'years_of_experience': professional_summary.get('years_of_experience', 0),
+                                    # Structured Data (JSON)
+                                    'skills': data.get('skills', []),
+                                    'work_experience': data.get('work_experience', []),
+                                    'education': data.get('education', []),
+                                    'projects': data.get('projects', []),
+                                    'certifications': data.get('certifications', []),
+                                    # Additional Info
+                                    'availability': additional_info.get('availability', ''),
+                                    'willing_to_relocate': additional_info.get('willing_to_relocate', ''),
+                                    'salary_expectations': additional_info.get('salary_expectations', ''),
+                                    'preferred_work_mode': additional_info.get('preferred_work_mode', ''),
+                                }
                             )
                             successful_saves += 1
+                            
+                            # Optional: Add different messages for create vs update
+                            action = "created" if created else "updated"
+                            print(f"Resume {action} for {basic_info.get('full_name', 'Unknown')}")
                         except Exception as e:
                             messages.warning(request, f"Parsed {result.get('filename', 'unknown file')} but failed to save: {str(e)}")
                 
@@ -365,17 +388,11 @@ def resumes(request):
                     for failed in failed_parses:
                         messages.error(request, f"Failed to parse {failed.get('filename', 'unknown file')}: {failed.get('message', 'Unknown error')}")
                 
-                # Return with parsed data for display
-                return render(request, 'home/resumes.html', {
-                    'parsed_data': parsed_data, 
-                    'job_descriptions': job_descriptions
-                })
-                
-            except requests.exceptions.ConnectionError:
-                messages.error(request, "Cannot connect to resume parser service. Please make sure the FastAPI server is running.")
+                # Redirect to avoid showing temporary parsing results
                 return redirect('resumes')
+                
             except Exception as e:
-                messages.error(request, f"Error communicating with resume parser: {str(e)}")
+                messages.error(request, f"Unexpected error processing resumes: {str(e)}")
                 return redirect('resumes')
         
         # Handle delete resume
