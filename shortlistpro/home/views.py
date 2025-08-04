@@ -401,14 +401,38 @@ def resumes(request):
             Resume.objects.filter(id=resume_id, user=request.user).delete()
             messages.success(request, 'Resume deleted successfully!')
             return redirect('resumes')
+        
+        # Handle bulk delete resumes
+        elif 'bulk_delete_resumes' in request.POST:
+            resume_ids = request.POST.get('resume_ids', '')
+            if resume_ids:
+                resume_ids_list = [int(id.strip()) for id in resume_ids.split(',') if id.strip()]
+                deleted_count = Resume.objects.filter(id__in=resume_ids_list, user=request.user).count()
+                Resume.objects.filter(id__in=resume_ids_list, user=request.user).delete()
+                messages.success(request, f'Successfully deleted {deleted_count} resume{"s" if deleted_count != 1 else ""}!')
+            else:
+                messages.error(request, 'No resumes selected for deletion.')
+            return redirect('resumes')
     
     # Get notifications for header
     notifications = get_notifications()
+    
+    # Calculate statistics
+    total_resumes = sum(jd.resumes.count() for jd in job_descriptions)
+    ai_parsed_count = sum(1 for jd in job_descriptions for resume in jd.resumes.all() if resume.candidate_name)
+    
+    # Count recent uploads (last 7 days)
+    from datetime import datetime, timedelta
+    week_ago = timezone.now() - timedelta(days=7)
+    recent_uploads_count = sum(1 for jd in job_descriptions for resume in jd.resumes.all() if resume.uploaded_at >= week_ago)
 
     return render(request, 'home/resumes.html', {
         'job_descriptions': job_descriptions,
         'notifications': notifications,
         'notifications_count': len(notifications),
+        'total_resumes': total_resumes,
+        'ai_parsed_count': ai_parsed_count,
+        'recent_uploads_count': recent_uploads_count,
     })
 
 @login_required
