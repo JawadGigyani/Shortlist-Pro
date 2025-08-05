@@ -31,7 +31,7 @@ from django.contrib.auth import update_session_auth_hash
 from django.shortcuts import redirect
 from django.http import JsonResponse
 from .forms import UserForm, ProfileForm, JobDescriptionForm, ResumeForm
-from .models import Resume, Shortlisted, Interview, JobDescription
+from .models import Resume, Shortlisted, Interview, JobDescription, MatchingResult
 from django.utils import timezone
 from datetime import timedelta
 from django.utils import timezone
@@ -515,10 +515,115 @@ def resumes(request):
 
 @login_required
 def matching(request):
+    """
+    Enhanced view for AI-powered resume matching with dynamic JD selection
+    """
     notifications = get_notifications()
+    
+    if request.method == 'POST':
+        # Check if it's an AJAX request
+        is_ajax = request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+        
+        if 'get_unmatched_resumes' in request.POST:
+            # Get unmatched resumes for selected JD
+            jd_id = request.POST.get('jd_id')
+            try:
+                jd = JobDescription.objects.get(id=jd_id, user=request.user)
+                
+                # Get all resumes for this JD that don't have matching results yet
+                all_resumes = Resume.objects.filter(user=request.user, jobdescription=jd)
+                matched_resume_ids = MatchingResult.objects.filter(
+                    user=request.user, 
+                    jobdescription=jd
+                ).values_list('resume_id', flat=True)
+                
+                unmatched_resumes = all_resumes.exclude(id__in=matched_resume_ids)
+                
+                resume_data = []
+                for resume in unmatched_resumes:
+                    resume_data.append({
+                        'id': resume.id,
+                        'candidate_name': resume.candidate_name,
+                        'email': resume.email,
+                        'years_of_experience': resume.years_of_experience,
+                        'career_level': resume.career_level,
+                        'uploaded_at': resume.uploaded_at.strftime('%Y-%m-%d')
+                    })
+                
+                return JsonResponse({
+                    'success': True,
+                    'resumes': resume_data,
+                    'total_count': len(resume_data)
+                })
+                
+            except JobDescription.DoesNotExist:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Invalid job description selected'
+                })
+        
+        elif 'run_matching' in request.POST:
+            # Run AI matching for selected resumes
+            jd_id = request.POST.get('jd_id')
+            resume_ids = request.POST.getlist('resume_ids')
+            
+            try:
+                jd = JobDescription.objects.get(id=jd_id, user=request.user)
+                resumes = Resume.objects.filter(
+                    id__in=resume_ids, 
+                    user=request.user, 
+                    jobdescription=jd
+                )
+                
+                if not resumes.exists():
+                    return JsonResponse({
+                        'success': False,
+                        'error': 'No valid resumes selected for matching'
+                    })
+                
+                # TODO: Implement actual API call to matching service
+                # For now, return success with count
+                return JsonResponse({
+                    'success': True,
+                    'message': f'Matching initiated for {resumes.count()} resume(s)',
+                    'total_resumes': resumes.count()
+                })
+                
+            except JobDescription.DoesNotExist:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Invalid job description selected'
+                })
+    
+    # Get job descriptions for the user
+    job_descriptions = JobDescription.objects.filter(user=request.user).order_by('-created_at')
+    
+    # Get existing matching results for display
+    matching_results = MatchingResult.objects.filter(user=request.user).select_related(
+        'resume', 'job_description'
+    ).order_by('-overall_score', '-created_at')
+    
+    # Calculate statistics
+    total_matches = matching_results.count()
+    high_score_matches = matching_results.filter(overall_score__gte=90).count()
+    medium_score_matches = matching_results.filter(
+        overall_score__gte=70, overall_score__lt=90
+    ).count()
+    
+    avg_score = 0
+    if total_matches > 0:
+        total_score = sum(result.overall_score for result in matching_results)
+        avg_score = round(total_score / total_matches, 1)
+    
     return render(request, 'home/matching.html', {
         'notifications': notifications,
         'notifications_count': len(notifications),
+        'job_descriptions': job_descriptions,
+        'matching_results': matching_results,
+        'total_matches': total_matches,
+        'high_score_matches': high_score_matches,
+        'medium_score_matches': medium_score_matches,
+        'avg_score': avg_score,
     })
 
 @login_required
