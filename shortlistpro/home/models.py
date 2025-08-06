@@ -87,10 +87,20 @@ class Interview(models.Model):
 class MatchingResult(models.Model):
     """Model to store AI matching results between resumes and job descriptions"""
     
+    # Status choices
+    STATUS_CHOICES = [
+        ('pending', 'Pending Review'),
+        ('shortlisted', 'Shortlisted'),
+        ('rejected', 'Rejected'),
+    ]
+    
     # Core relationships
     resume = models.ForeignKey(Resume, on_delete=models.CASCADE, related_name='matching_results')
     job_description = models.ForeignKey(JobDescription, on_delete=models.CASCADE, related_name='matching_results')
     user = models.ForeignKey(User, on_delete=models.CASCADE)  # For easy filtering
+    
+    # Status tracking
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
     
     # Matching scores (0-100)
     overall_score = models.DecimalField(max_digits=5, decimal_places=2, default=0.00)

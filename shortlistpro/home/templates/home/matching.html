@@ -1,4 +1,5 @@
 {% extends 'home/dashboard_base.html' %} 
+{% load resume_filters %}
 {% block dashboard_title %}
 AI Matching
 {% endblock %} 
@@ -18,6 +19,258 @@ AI Matching
   alertType: '',
   showAlert: false,
   
+  // Email confirmation dialog
+  showEmailConfirmation: false,
+  emailConfirmationData: {
+    count: 0,
+    type: '',
+    candidates: []
+  },
+  
+  // Filtering and selection state
+  selectedCandidates: [],
+  filteredResults: [],
+  allResults: [],
+  
+  // Filter controls
+  selectedJob: 'all',
+  selectedScore: 'all',
+  topCandidatesSlider: 100,
+  percentageFilter: 100,
+  showFilterPanel: false,
+  
+  // Status tabs
+  activeTab: 'pending',
+  
+  // Expandable cards
+  expandedCards: [],
+  
+  initializeFilters: function() {
+    this.allResults = [...document.querySelectorAll('.candidate-card')].map(card => {
+      return {
+        element: card,
+        score: parseInt(card.dataset.score),
+        jobId: card.dataset.jobId,
+        candidateId: card.dataset.candidateId
+      };
+    });
+    this.applyFilters();
+  },
+  
+  applyFilters: function() {
+    let results = [...this.allResults];
+    
+    // Filter by job
+    if (this.selectedJob !== 'all') {
+      results = results.filter(r => r.jobId === this.selectedJob);
+    }
+    
+    // Filter by score range
+    if (this.selectedScore !== 'all') {
+      if (this.selectedScore === '90+') {
+        results = results.filter(r => r.score >= 90);
+      } else if (this.selectedScore === '70-89') {
+        results = results.filter(r => r.score >= 70 && r.score < 90);
+      } else if (this.selectedScore === 'below70') {
+        results = results.filter(r => r.score < 70);
+      }
+    }
+    
+    // Apply top candidates filter
+    const maxCandidates = Math.ceil((results.length * this.topCandidatesSlider) / 100);
+    results = results.slice(0, maxCandidates);
+    
+    // Apply percentage filter
+    const percentageCandidates = Math.ceil((results.length * this.percentageFilter) / 100);
+    results = results.slice(0, percentageCandidates);
+    
+    // Show/hide elements
+    this.allResults.forEach(result => {
+      if (results.includes(result)) {
+        result.element.style.display = 'block';
+      } else {
+        result.element.style.display = 'none';
+      }
+    });
+    
+    this.filteredResults = results;
+  },
+  
+  toggleCandidateSelection: function(candidateId) {
+    const index = this.selectedCandidates.indexOf(candidateId);
+    if (index > -1) {
+      this.selectedCandidates.splice(index, 1);
+    } else {
+      this.selectedCandidates.push(candidateId);
+    }
+  },
+  
+  selectAllVisible: function() {
+    // Get all candidate IDs that are visible in the current tab
+    const visibleCandidatesInTab = [];
+    {% if matching_results %}
+    const allCandidates = [
+      {% for result in matching_results %}
+      {
+        id: '{{ result.id }}',
+        status: '{{ result.status }}'
+      }{% if not forloop.last %},{% endif %}
+      {% endfor %}
+    ];
+    
+    // Filter candidates by current active tab
+    allCandidates.forEach(candidate => {
+      if (candidate.status === this.activeTab) {
+        visibleCandidatesInTab.push(candidate.id);
+      }
+    });
+    {% endif %}
+    
+    // Check if all visible candidates in current tab are already selected
+    const allTabCandidatesSelected = visibleCandidatesInTab.every(id => 
+      this.selectedCandidates.includes(id)
+    );
+    
+    if (allTabCandidatesSelected && visibleCandidatesInTab.length > 0) {
+      // Deselect all candidates from current tab
+      this.selectedCandidates = this.selectedCandidates.filter(id => 
+        !visibleCandidatesInTab.includes(id)
+      );
+    } else {
+      // Select all candidates from current tab (add only new ones)
+      visibleCandidatesInTab.forEach(id => {
+        if (!this.selectedCandidates.includes(id)) {
+          this.selectedCandidates.push(id);
+        }
+      });
+    }
+  },
+  
+  toggleCardExpansion: function(cardId) {
+    const index = this.expandedCards.indexOf(cardId);
+    if (index > -1) {
+      this.expandedCards.splice(index, 1);
+    } else {
+      this.expandedCards.push(cardId);
+    }
+  },
+  
+  shortlistSelected: function() {
+    if (this.selectedCandidates.length === 0) {
+      this.showAlertMessage('Please select at least one candidate to shortlist.', 'warning');
+      return;
+    }
+    
+    const formData = new FormData();
+    formData.append('shortlist_multiple', '1');
+    this.selectedCandidates.forEach(id => {
+      formData.append('candidate_ids', id);
+    });
+    formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+    
+    fetch(window.location.href, {
+      method: 'POST',
+      body: formData,
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        this.showAlertMessage(`Successfully shortlisted ${this.selectedCandidates.length} candidate(s)`, 'success');
+        this.selectedCandidates = [];
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
+      } else {
+        this.showAlertMessage(data.error || 'Failed to shortlist candidates', 'error');
+      }
+    })
+    .catch(error => {
+      this.showAlertMessage('Error shortlisting candidates: ' + error.message, 'error');
+    });
+  },
+  
+  rejectSelected: function() {
+    if (this.selectedCandidates.length === 0) {
+      this.showAlertMessage('Please select at least one candidate to reject.', 'warning');
+      return;
+    }
+    
+    const formData = new FormData();
+    formData.append('reject_multiple', '1');
+    this.selectedCandidates.forEach(id => {
+      formData.append('candidate_ids', id);
+    });
+    formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+    
+    fetch(window.location.href, {
+      method: 'POST',
+      body: formData,
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        this.showAlertMessage(`Successfully rejected ${this.selectedCandidates.length} candidate(s)`, 'success');
+        this.selectedCandidates = [];
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
+      } else {
+        this.showAlertMessage(data.error || 'Failed to reject candidates', 'error');
+      }
+    })
+    .catch(error => {
+      this.showAlertMessage('Error rejecting candidates: ' + error.message, 'error');
+    });
+  },
+  
+  deleteSelected: function() {
+    if (this.selectedCandidates.length === 0) {
+      this.showAlertMessage('Please select at least one candidate to delete.', 'warning');
+      return;
+    }
+    
+    // Show confirmation dialog
+    if (!confirm(`Are you sure you want to delete ${this.selectedCandidates.length} matching result(s)? This action cannot be undone.`)) {
+      return;
+    }
+    
+    const formData = new FormData();
+    formData.append('delete_selected', '1');
+    this.selectedCandidates.forEach(id => {
+      formData.append('candidate_ids', id);
+    });
+    formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+    
+    fetch(window.location.href, {
+      method: 'POST',
+      body: formData,
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        this.showAlertMessage(`Successfully deleted ${this.selectedCandidates.length} matching result(s)`, 'success');
+        this.selectedCandidates = [];
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
+      } else {
+        this.showAlertMessage(data.error || 'Failed to delete matching results', 'error');
+      }
+    })
+    .catch(error => {
+      this.showAlertMessage('Error deleting matching results: ' + error.message, 'error');
+    });
+  },
+  
   showAlertMessage: function(message, type = 'info') {
     this.alertMessage = message;
     this.alertType = type;
@@ -25,6 +278,102 @@ AI Matching
     setTimeout(() => {
       this.showAlert = false;
     }, 5000);
+  },
+  
+  sendEmails: function() {
+    // Check if any candidates are selected
+    if (this.selectedCandidates.length === 0) {
+      this.showAlertMessage('Please select at least one candidate to send emails to.', 'warning');
+      return;
+    }
+    
+    // Determine email type based on active tab
+    let emailType = '';
+    if (this.activeTab === 'shortlisted') {
+      emailType = 'selection';
+    } else if (this.activeTab === 'rejected') {
+      emailType = 'rejection';
+    } else {
+      this.showAlertMessage('Please select either Shortlisted or Rejected tab to send emails.', 'warning');
+      return;
+    }
+    
+    // Filter selected candidates to only include those from the current tab
+    let candidatesForEmail = [];
+    {% if matching_results %}
+    const templateCandidates = [
+      {% for result in matching_results %}
+      {
+        id: {{ result.id }},
+        status: '{{ result.status }}',
+        name: '{{ result.resume.candidate_name|default:"Unknown Candidate" }}'
+      }{% if not forloop.last %},{% endif %}
+      {% endfor %}
+    ];
+    
+    // Filter to only selected candidates that match the current tab status
+    candidatesForEmail = templateCandidates.filter(candidate => 
+      this.selectedCandidates.includes(candidate.id.toString()) && 
+      candidate.status === this.activeTab
+    );
+    {% endif %}
+    
+    if (candidatesForEmail.length === 0) {
+      this.showAlertMessage(`No selected candidates found in the ${this.activeTab} tab to send emails to.`, 'warning');
+      return;
+    }
+    
+    // Show custom confirmation dialog
+    this.emailConfirmationData = {
+      count: candidatesForEmail.length,
+      type: emailType === 'selection' ? 'selection' : 'rejection',
+      candidates: candidatesForEmail.map(c => c.id)
+    };
+    this.showEmailConfirmation = true;
+  },
+  
+  confirmSendEmails: function() {
+    const { candidates, type } = this.emailConfirmationData;
+    
+    // Hide confirmation dialog
+    this.showEmailConfirmation = false;
+    
+    // Show loading state
+    const emailTypeText = type === 'selection' ? 'selection' : 'rejection';
+    this.showAlertMessage(`Sending ${emailTypeText} emails to ${candidates.length} candidate(s)...`, 'info');
+    
+    // Send email request to FastAPI service
+    fetch('http://localhost:8003/send-emails', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        candidate_ids: candidates,
+        email_type: type
+      })
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        let message = `Successfully sent ${data.sent_count} emails`;
+        if (data.failed_count > 0) {
+          message += `. ${data.failed_count} emails failed to send.`;
+        }
+        this.showAlertMessage(message, 'success');
+        // Clear selected candidates after successful email send
+        this.selectedCandidates = [];
+      } else {
+        this.showAlertMessage(data.detail || 'Failed to send emails', 'error');
+      }
+    })
+    .catch(error => {
+      this.showAlertMessage('Error sending emails: ' + error.message, 'error');
+    });
+  },
+  
+  cancelSendEmails: function() {
+    this.showEmailConfirmation = false;
   },
   
   openMatchingModal: function() {
@@ -127,30 +476,57 @@ AI Matching
       this.matchingProgress = 100;
       
       if (data.success) {
-        this.showAlertMessage(data.message, 'success');
+        // Enhanced success message with detailed results
+        let message = data.message;
+        if (data.results && data.results.length > 0) {
+          const avgScore = data.results.reduce((sum, r) => sum + r.score, 0) / data.results.length;
+          message += ` (Avg. Score: ${avgScore.toFixed(1)}%)`;
+        }
+        
+        // Show detailed results if available
+        if (data.errors && data.errors.length > 0) {
+          console.warn('Matching errors:', data.errors);
+          message += `. ${data.errors.length} error(s) occurred - check console for details.`;
+        }
+        
+        this.showAlertMessage(message, 'success');
         this.showModal = false;
+        
         // Reload page to show new results
         setTimeout(() => {
           window.location.reload();
         }, 2000);
       } else {
-        this.showAlertMessage(data.error || 'Matching failed', 'error');
+        // Enhanced error handling
+        let errorMessage = data.error || 'Matching failed';
+        if (data.errors && data.errors.length > 0) {
+          errorMessage += '. Errors: ' + data.errors.slice(0, 2).join(', ');
+          if (data.errors.length > 2) {
+            errorMessage += ` and ${data.errors.length - 2} more...`;
+          }
+        }
+        this.showAlertMessage(errorMessage, 'error');
       }
     })
     .catch(error => {
       this.isMatching = false;
-      this.showAlertMessage('Error during matching: ' + error.message, 'error');
+      this.showAlertMessage('Network error during matching. Please ensure the AI matching service is running.', 'error');
+      console.error('Matching request failed:', error);
     });
   },
   
   simulateProgress: function() {
     let progress = 0;
+    const resumeCount = this.selectedResumes.length;
     const steps = [
-      { progress: 10, text: 'Initializing AI matching...' },
-      { progress: 30, text: 'Analyzing job requirements...' },
-      { progress: 50, text: 'Processing candidate profiles...' },
-      { progress: 70, text: 'Calculating match scores...' },
-      { progress: 90, text: 'Finalizing results...' }
+      { progress: 5, text: 'Connecting to AI matching service...' },
+      { progress: 15, text: 'Parsing job description requirements...' },
+      { progress: 25, text: 'Preparing candidate resume data...' },
+      { progress: 40, text: `Processing ${resumeCount} resume(s) with AI...` },
+      { progress: 60, text: 'Analyzing skills and experience match...' },
+      { progress: 75, text: 'Calculating comprehensive match scores...' },
+      { progress: 85, text: 'Generating recommendations...' },
+      { progress: 95, text: 'Saving results to database...' }
     ];
     
     let stepIndex = 0;
@@ -162,9 +538,110 @@ AI Matching
       } else {
         clearInterval(interval);
       }
-    }, 800);
+    }, 1000); // Slightly slower to account for AI processing time
   }
-}" @keydown.escape.window="showModal = false;">
+}" @keydown.escape.window="showModal = false;" x-init="initializeFilters()">
+
+<!-- Add JavaScript functions for candidate actions -->
+<script>
+function shortlistCandidate(resultId) {
+  const formData = new FormData();
+  formData.append('result_id', resultId);
+  formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+  
+  fetch('{% url "shortlist_candidate" %}', {
+    method: 'POST',
+    body: formData,
+    headers: {
+      'X-Requested-With': 'XMLHttpRequest'
+    }
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      // Show success message
+      showAlert(data.message, 'success');
+      // Reload page after short delay to update UI
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
+    } else {
+      showAlert(data.error || 'Failed to shortlist candidate', 'error');
+    }
+  })
+  .catch(error => {
+    showAlert('Network error: ' + error.message, 'error');
+  });
+}
+
+function rejectCandidate(resultId) {
+  if (confirm('Are you sure you want to reject this candidate?')) {
+    const formData = new FormData();
+    formData.append('result_id', resultId);
+    formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+    
+    fetch('{% url "reject_candidate" %}', {
+      method: 'POST',
+      body: formData,
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        showAlert(data.message, 'success');
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
+      } else {
+        showAlert(data.error || 'Failed to reject candidate', 'error');
+      }
+    })
+    .catch(error => {
+      showAlert('Network error: ' + error.message, 'error');
+    });
+  }
+}
+
+function deleteMatchingResult(resultId) {
+  if (confirm('Are you sure you want to delete this matching result? This action cannot be undone.')) {
+    const formData = new FormData();
+    formData.append('result_id', resultId);
+    formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+    
+    fetch('{% url "delete_matching_result" %}', {
+      method: 'POST',
+      body: formData,
+      headers: {
+        'X-Requested-With': 'XMLHttpRequest'
+      }
+    })
+    .then(response => response.json())
+    .then(data => {
+      if (data.success) {
+        showAlert(data.message, 'success');
+        setTimeout(() => {
+          window.location.reload();
+        }, 1500);
+      } else {
+        showAlert(data.error || 'Failed to delete matching result', 'error');
+      }
+    })
+    .catch(error => {
+      showAlert('Network error: ' + error.message, 'error');
+    });
+  }
+}
+
+function showAlert(message, type) {
+  // This function integrates with the existing Alpine.js alert system
+  const alertContainer = document.querySelector('[x-data]').__x.$data;
+  if (alertContainer) {
+    alertContainer.showAlertMessage(message, type);
+  }
+}
+</script>
 
   <!-- Alert Component -->
   <div x-show="showAlert" 
@@ -310,156 +787,420 @@ AI Matching
 <!-- Matching Results -->
 <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
   <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
-    <div class="flex items-center justify-between">
+    <div class="flex items-center justify-between mb-4">
       <div>
         <h3 class="text-lg font-semibold text-gray-900">Matching Results</h3>
         <p class="text-sm text-gray-600">AI-powered candidate matching scores</p>
       </div>
-      <div class="flex items-center gap-2">
-        <select class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-          <option>All Jobs</option>
-          {% for jd in job_descriptions %}
-          <option value="{{ jd.id }}">{{ jd.title }}</option>
-          {% endfor %}
-        </select>
-        <select class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-          <option>All Scores</option>
-          <option>90% and above</option>
-          <option>70% - 89%</option>
-          <option>Below 70%</option>
-        </select>
+      <div class="flex items-center gap-3">
+        <!-- Selection Controls -->
+        <div class="flex items-center gap-2">
+          <span class="text-sm text-gray-600">Selected:</span>
+          <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800" x-text="selectedCandidates.length"></span>
+        </div>
+        
+        <button @click="selectAllVisible()" class="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
+          <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          <span x-text="selectedCandidates.length === filteredResults.length ? 'Deselect All' : 'Select All'"></span>
+        </button>
+        
+        <!-- Show Shortlist and Reject buttons only on pending tab -->
+        <div x-show="activeTab === 'pending'" class="flex items-center gap-3">
+          <button @click="shortlistSelected()" 
+                  :disabled="selectedCandidates.length === 0"
+                  class="inline-flex items-center px-4 py-2 bg-green-600 text-white rounded-lg font-semibold hover:bg-green-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+            </svg>
+            Shortlist Selected
+          </button>
+          
+          <button @click="rejectSelected()" 
+                  :disabled="selectedCandidates.length === 0"
+                  class="inline-flex items-center px-4 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+            Reject Selected
+          </button>
+        </div>
+        
+        <button @click="deleteSelected()" 
+                :disabled="selectedCandidates.length === 0"
+                class="inline-flex items-center px-4 py-2 bg-red-600 text-white rounded-lg font-semibold hover:bg-red-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed">
+          <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+          </svg>
+          Delete Selected
+        </button>
+        
+        <button @click="showFilterPanel = !showFilterPanel" class="inline-flex items-center px-3 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors">
+          <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/>
+          </svg>
+          Filters
+        </button>
+      </div>
+    </div>
+    
+    <!-- Expandable Filter Panel -->
+    <div x-show="showFilterPanel" x-transition class="bg-white rounded-lg border border-gray-200 p-4 mb-4">
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+        <!-- Job Filter -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">Filter by Job</label>
+          <select x-model="selectedJob" @change="applyFilters()" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+            <option value="all">All Jobs</option>
+            {% for jd in job_descriptions %}
+            <option value="{{ jd.id }}">{{ jd.title }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        
+        <!-- Score Filter -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">Filter by Score</label>
+          <select x-model="selectedScore" @change="applyFilters()" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+            <option value="all">All Scores</option>
+            <option value="90+">90% and above</option>
+            <option value="70-89">70% - 89%</option>
+            <option value="below70">Below 70%</option>
+          </select>
+        </div>
+        
+        <!-- Top Candidates Slider -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">Top Candidates</label>
+          <div class="space-y-2">
+            <input type="range" x-model="topCandidatesSlider" @input="applyFilters()" min="10" max="100" step="10" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+            <div class="flex justify-between text-xs text-gray-500">
+              <span>Top 10%</span>
+              <span x-text="'Top ' + topCandidatesSlider + '%'"></span>
+              <span>All</span>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Percentage Filter -->
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-2">Show Percentage</label>
+          <div class="space-y-2">
+            <input type="range" x-model="percentageFilter" @input="applyFilters()" min="10" max="100" step="10" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer">
+            <div class="flex justify-between text-xs text-gray-500">
+              <span>10%</span>
+              <span x-text="percentageFilter + '%'"></span>
+              <span>100%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <!-- Filter Summary -->
+      <div class="mt-4 pt-4 border-t border-gray-200">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-4 text-sm text-gray-600">
+            <span>Showing: <span x-text="filteredResults.length"></span> candidates</span>
+            <span>Selected: <span x-text="selectedCandidates.length"></span></span>
+          </div>
+          <button @click="selectedJob = 'all'; selectedScore = 'all'; topCandidatesSlider = 100; percentageFilter = 100; applyFilters();" class="text-sm text-blue-600 hover:text-blue-700">
+            Clear All Filters
+          </button>
+        </div>
       </div>
     </div>
   </div>
   
-  <div class="divide-y divide-gray-200">
+  <!-- Clean and Minimalist Status Tabs -->
+  <div class="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
+    <!-- Simple Tab Navigation -->
+    <div class="border-b border-gray-200">
+      <nav class="flex" role="tablist">
+        <!-- Pending Candidates Tab -->
+        <button @click="activeTab = 'pending'" 
+                :class="activeTab === 'pending' ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                class="flex items-center gap-2 px-6 py-4 border-b-2 font-medium text-sm transition-colors">
+          <span>Pending</span>
+          <span class="bg-gray-100 text-gray-600 px-2 py-1 rounded-full text-xs font-medium">{{ pending_count|default:0 }}</span>
+        </button>
+        
+        <!-- Shortlisted Tab -->
+        <button @click="activeTab = 'shortlisted'" 
+                :class="activeTab === 'shortlisted' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                class="flex items-center gap-2 px-6 py-4 border-b-2 font-medium text-sm transition-colors">
+          <span>Shortlisted</span>
+          <span class="bg-green-100 text-green-600 px-2 py-1 rounded-full text-xs font-medium">{{ shortlisted_count|default:0 }}</span>
+        </button>
+        
+        <!-- Rejected Tab -->
+        <button @click="activeTab = 'rejected'" 
+                :class="activeTab === 'rejected' ? 'border-red-500 text-red-600' : 'border-transparent text-gray-500 hover:text-gray-700'"
+                class="flex items-center gap-2 px-6 py-4 border-b-2 font-medium text-sm transition-colors">
+          <span>Rejected</span>
+          <span class="bg-red-100 text-red-600 px-2 py-1 rounded-full text-xs font-medium">{{ rejected_count|default:0 }}</span>
+        </button>
+      </nav>
+    </div>
+    
+    <!-- Simple Email Action Bar -->
+    <div x-show="activeTab === 'shortlisted' || activeTab === 'rejected'" 
+         class="p-4 bg-gray-50 border-b border-gray-200">
+      <div class="flex items-center justify-between">
+        <span class="text-sm text-gray-600" x-text="activeTab === 'shortlisted' ? 'Send selection emails to shortlisted candidates' : 'Send rejection emails to candidates'"></span>
+        <button class="px-4 py-2 text-sm font-medium text-white rounded-md transition-colors" 
+                :class="activeTab === 'shortlisted' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'"
+                @click="sendEmails()">
+          <span x-text="activeTab === 'shortlisted' ? 'Send Selection Emails' : 'Send Rejection Emails'"></span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="space-y-4">
     {% if matching_results %}
       {% for result in matching_results %}
-      <!-- Match Result -->
-      <div class="p-6 hover:bg-gray-50 transition-colors">
-        <div class="flex items-start justify-between">
-          <div class="flex-1 min-w-0">
-            <div class="flex items-center gap-4 mb-4">
-              <div class="bg-blue-100 p-3 rounded-full">
-                <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
-                </svg>
-              </div>
+      <!-- Clean Candidate Card -->
+      <div class="candidate-card bg-white border border-gray-200 rounded-lg hover:shadow-md transition-shadow" 
+           data-score="{{ result.overall_score }}" 
+           data-job-id="{{ result.job_description.id }}" 
+           data-candidate-id="{{ result.id }}"
+           x-show="(activeTab === 'pending' && '{{ result.status }}' === 'pending') || 
+                   (activeTab === 'shortlisted' && '{{ result.status }}' === 'shortlisted') ||
+                   (activeTab === 'rejected' && '{{ result.status }}' === 'rejected')">
+        
+        <div class="p-6">
+          <!-- Card Header -->
+          <div class="flex items-start justify-between mb-4">
+            <div class="flex items-start gap-4 flex-1">
+              <!-- Selection Checkbox -->
+              <input type="checkbox" 
+                     :checked="selectedCandidates.includes('{{ result.id }}')"
+                     @change="toggleCandidateSelection('{{ result.id }}')"
+                     class="mt-1 rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+              
+              <!-- Candidate Info -->
               <div class="flex-1">
-                <h4 class="text-lg font-semibold text-gray-900">{{ result.resume.candidate_name }}</h4>
-                <p class="text-sm text-gray-600">{{ result.resume.email }}</p>
-                <p class="text-sm text-gray-500">Applied for: {{ result.job_description.title }}</p>
-              </div>
-              <div class="text-right">
-                <div class="inline-flex items-center px-4 py-2 rounded-full text-lg font-bold {% if result.overall_score >= 90 %}bg-gradient-to-r from-green-100 to-blue-100 text-green-700{% elif result.overall_score >= 70 %}bg-gradient-to-r from-yellow-100 to-orange-100 text-yellow-700{% else %}bg-gradient-to-r from-red-100 to-pink-100 text-red-700{% endif %}">
-                  {{ result.overall_score }}% Match
-                </div>
-                <p class="text-xs text-gray-500 mt-1">AI Confidence: {% if result.overall_score >= 90 %}High{% elif result.overall_score >= 70 %}Medium{% else %}Low{% endif %}</p>
-              </div>
-            </div>
-            
-            <!-- Match Details -->
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-              <div class="bg-gray-50 rounded-lg p-3">
-                <h5 class="text-sm font-semibold text-gray-700 mb-2">Skills Match</h5>
-                <div class="flex items-center gap-2">
-                  <div class="flex-1 bg-gray-200 rounded-full h-2">
-                    <div class="{% if result.skills_score >= 80 %}bg-green-500{% elif result.skills_score >= 60 %}bg-yellow-500{% else %}bg-red-500{% endif %} h-2 rounded-full" style="width: {{ result.skills_score }}%"></div>
-                  </div>
-                  <span class="text-sm font-medium text-gray-700">{{ result.skills_score }}%</span>
-                </div>
-              </div>
-              
-              <div class="bg-gray-50 rounded-lg p-3">
-                <h5 class="text-sm font-semibold text-gray-700 mb-2">Experience Match</h5>
-                <div class="flex items-center gap-2">
-                  <div class="flex-1 bg-gray-200 rounded-full h-2">
-                    <div class="{% if result.experience_score >= 80 %}bg-blue-500{% elif result.experience_score >= 60 %}bg-yellow-500{% else %}bg-red-500{% endif %} h-2 rounded-full" style="width: {{ result.experience_score }}%"></div>
-                  </div>
-                  <span class="text-sm font-medium text-gray-700">{{ result.experience_score }}%</span>
-                </div>
-              </div>
-              
-              <div class="bg-gray-50 rounded-lg p-3">
-                <h5 class="text-sm font-semibold text-gray-700 mb-2">Education Match</h5>
-                <div class="flex items-center gap-2">
-                  <div class="flex-1 bg-gray-200 rounded-full h-2">
-                    <div class="{% if result.education_score >= 80 %}bg-purple-500{% elif result.education_score >= 60 %}bg-yellow-500{% else %}bg-red-500{% endif %} h-2 rounded-full" style="width: {{ result.education_score }}%"></div>
-                  </div>
-                  <span class="text-sm font-medium text-gray-700">{{ result.education_score }}%</span>
-                </div>
-              </div>
-            </div>
-            
-            <!-- Key Highlights -->
-            <div class="mb-4">
-              <h5 class="text-sm font-semibold text-gray-700 mb-2">Key Highlights</h5>
-              <div class="flex flex-wrap gap-2">
-                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                  {{ result.resume.experience }} years experience
-                </span>
-                {% if result.resume.skills %}
-                  {% for skill in result.resume.skills|slice:":3" %}
-                  <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                    {{ skill }}
-                  </span>
-                  {% endfor %}
-                  {% if result.resume.skills|length > 3 %}
-                  <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                    +{{ result.resume.skills|length|add:"-3" }} more
-                  </span>
+                <div class="flex items-center gap-3 mb-2">
+                  <h4 class="text-lg font-semibold text-gray-900">{{ result.resume.candidate_name|default:"Unknown Candidate" }}</h4>
+                  
+                  <!-- Simple Status Badge -->
+                  {% if result.status == 'shortlisted' %}
+                    <span class="px-3 py-1 text-sm font-medium bg-green-100 text-green-800 rounded-full">Shortlisted</span>
+                  {% elif result.status == 'rejected' %}
+                    <span class="px-3 py-1 text-sm font-medium bg-red-100 text-red-800 rounded-full">Rejected</span>
+                  {% else %}
+                    <span class="px-3 py-1 text-sm font-medium bg-gray-100 text-gray-800 rounded-full">Pending</span>
                   {% endif %}
-                {% endif %}
-                {% if result.resume.education %}
-                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
-                  {{ result.resume.education|truncatechars:20 }}
-                </span>
-                {% endif %}
+                </div>
+                
+                <div class="text-sm text-gray-600 space-y-1">
+                  <p>{{ result.resume.email|default:"No email provided" }}</p>
+                  <p>{{ result.job_description.title }}</p>
+                </div>
+                
+                <!-- Action Buttons -->
+                <div class="flex items-center gap-2 mt-3">
+                  {% if result.status == 'pending' %}
+                    <button onclick="shortlistCandidate('{{ result.id }}')" 
+                            class="px-3 py-1 text-sm bg-green-600 text-white rounded hover:bg-green-700">
+                      Shortlist
+                    </button>
+                    <button onclick="rejectCandidate('{{ result.id }}')" 
+                            class="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700">
+                      Reject
+                    </button>
+                  {% endif %}
+                  <button onclick="deleteMatchingResult('{{ result.id }}')" 
+                          class="px-3 py-1 text-sm bg-gray-500 text-white rounded hover:bg-gray-600">
+                    Delete
+                  </button>
+                </div>
               </div>
+            </div>
+            
+            <!-- Match Score -->
+            <div class="text-center ml-4">
+              <div class="w-20 h-20 rounded-full border-4 flex items-center justify-center 
+                          {% if result.overall_score >= 90 %}border-green-500 bg-green-50{% elif result.overall_score >= 70 %}border-yellow-500 bg-yellow-50{% else %}border-red-500 bg-red-50{% endif %}">
+                <span class="text-lg font-bold 
+                           {% if result.overall_score >= 90 %}text-green-700{% elif result.overall_score >= 70 %}text-yellow-700{% else %}text-red-700{% endif %}">
+                  {{ result.overall_score }}%
+                </span>
+              </div>
+              
+              <!-- Expand Button -->
+              <button @click="toggleCardExpansion('{{ result.id }}')" 
+                      class="mt-2 text-gray-400 hover:text-gray-600">
+                <svg class="w-5 h-5 transform transition-transform" 
+                     :class="expandedCards.includes('{{ result.id }}') ? 'rotate-180' : ''" 
+                     fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+                </svg>
+              </button>
             </div>
           </div>
           
-          <div class="ml-6 flex flex-col gap-2">
-            <button class="inline-flex items-center px-4 py-2 bg-gradient-to-r from-green-600 to-green-700 text-white rounded-xl font-semibold hover:from-green-700 hover:to-green-800 transition-all shadow-lg">
-              <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
-              </svg>
-              Shortlist
-            </button>
-            <a href="{% url 'resume_detail' result.resume.id %}" 
-               class="inline-flex items-center px-4 py-2 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 transition-all text-center">
-              <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
-              </svg>
-              View Details
-            </a>
-            <button class="inline-flex items-center px-4 py-2 bg-red-100 text-red-600 rounded-xl font-semibold hover:bg-red-200 transition-all">
-              <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-              </svg>
-              Reject
-            </button>
+          <!-- Score Breakdown -->
+          <div class="grid grid-cols-3 gap-3 mb-4">
+            <div class="text-center p-3 bg-blue-50 rounded">
+              <div class="text-sm text-blue-700 font-medium">Skills</div>
+              <div class="text-lg font-bold text-blue-800">{{ result.skills_score }}%</div>
+            </div>
+            <div class="text-center p-3 bg-purple-50 rounded">
+              <div class="text-sm text-purple-700 font-medium">Experience</div>
+              <div class="text-lg font-bold text-purple-800">{{ result.experience_score }}%</div>
+            </div>
+            <div class="text-center p-3 bg-green-50 rounded">
+              <div class="text-sm text-green-700 font-medium">Education</div>
+              <div class="text-lg font-bold text-green-800">{{ result.education_score }}%</div>
+            </div>
+          </div>
+          
+          <!-- Simple Expandable Content -->
+          <div x-show="expandedCards.includes('{{ result.id }}')" 
+               x-transition
+               class="border-t border-gray-200 pt-4 space-y-4">
+            
+            <!-- AI Insights -->
+            {% if result.match_reasoning %}
+              {% with reasoning=result.match_reasoning|load_json %}
+              <div class="bg-gray-50 rounded-lg p-4">
+                <h5 class="font-medium text-gray-900 mb-3">AI Analysis</h5>
+                
+                {% if reasoning.interview_recommendation %}
+                <div class="mb-3">
+                  <span class="text-sm font-medium text-gray-700">Recommendation:</span>
+                  <p class="text-sm text-gray-600 mt-1">{{ reasoning.interview_recommendation }}</p>
+                </div>
+                {% endif %}
+                
+                {% if reasoning.confidence_level %}
+                <div class="mb-3">
+                  <span class="text-sm font-medium text-gray-700">Confidence:</span>
+                  <span class="ml-2 px-2 py-1 text-xs font-medium rounded-full
+                           {% if reasoning.confidence_level == 'High' %}bg-green-100 text-green-800{% elif reasoning.confidence_level == 'Medium' %}bg-yellow-100 text-yellow-800{% else %}bg-red-100 text-red-800{% endif %}">
+                    {{ reasoning.confidence_level }}
+                  </span>
+                </div>
+                {% endif %}
+                
+                {% if reasoning.top_strengths %}
+                <div>
+                  <span class="text-sm font-medium text-gray-700">Key Strengths:</span>
+                  <div class="flex flex-wrap gap-2 mt-2">
+                    {% for strength in reasoning.top_strengths %}
+                    <span class="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded">{{ strength }}</span>
+                    {% endfor %}
+                  </div>
+                </div>
+                {% endif %}
+              </div>
+              {% endwith %}
+            {% endif %}
+            
+            <!-- Skills -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <h5 class="font-medium text-gray-900 mb-2">Matched Skills</h5>
+                {% if result.matched_skills %}
+                  {% with matched=result.matched_skills|load_json %}
+                  <div class="flex flex-wrap gap-1">
+                    {% for skill in matched|slice:":8" %}
+                    <span class="px-2 py-1 text-xs bg-green-100 text-green-800 rounded">{{ skill }}</span>
+                    {% endfor %}
+                    {% if matched|length > 8 %}
+                    <span class="px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded">+{{ matched|length|add:"-8" }} more</span>
+                    {% endif %}
+                  </div>
+                  {% endwith %}
+                {% else %}
+                  <p class="text-sm text-gray-500">No data available</p>
+                {% endif %}
+              </div>
+              
+              <div>
+                <h5 class="font-medium text-gray-900 mb-2">Missing Skills</h5>
+                {% if result.missing_skills %}
+                  {% with missing=result.missing_skills|load_json %}
+                  {% if missing %}
+                  <div class="flex flex-wrap gap-1">
+                    {% for skill in missing|slice:":6" %}
+                    <span class="px-2 py-1 text-xs bg-red-100 text-red-800 rounded">{{ skill }}</span>
+                    {% endfor %}
+                    {% if missing|length > 6 %}
+                    <span class="px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded">+{{ missing|length|add:"-6" }} more</span>
+                    {% endif %}
+                  </div>
+                  {% else %}
+                  <p class="text-sm text-green-600">No critical gaps</p>
+                  {% endif %}
+                  {% endwith %}
+                {% else %}
+                  <p class="text-sm text-gray-500">No data available</p>
+                {% endif %}
+              </div>
+            </div>
+            
+            <!-- Summary -->
+            <div class="grid grid-cols-4 gap-3">
+              <div class="text-center p-3 bg-gray-50 rounded">
+                <div class="text-xs text-gray-500">Experience</div>
+                <div class="font-medium text-gray-900">
+                  {% if result.resume.years_of_experience %}{{ result.resume.years_of_experience }} yrs{% else %}N/A{% endif %}
+                </div>
+              </div>
+              <div class="text-center p-3 bg-gray-50 rounded">
+                <div class="text-xs text-gray-500">Education</div>
+                <div class="font-medium text-gray-900">
+                  {% if result.resume.education %}
+                    {% with first_edu=result.resume.education|first %}
+                      {{ first_edu.degree|default:"Degree" }}
+                    {% endwith %}
+                  {% else %}N/A{% endif %}
+                </div>
+              </div>
+              <div class="text-center p-3 bg-gray-50 rounded">
+                <div class="text-xs text-gray-500">Skills</div>
+                <div class="font-medium text-gray-900">{{ result.resume.skills|length|default:0 }}</div>
+              </div>
+              <div class="text-center p-3 bg-gray-50 rounded">
+                <div class="text-xs text-gray-500">Analyzed</div>
+                <div class="font-medium text-gray-900">{{ result.created_at|timesince }}</div>
+              </div>
+            </div>
+            
+            <!-- View Resume Button -->
+            <div class="pt-4 border-t border-gray-200">
+              <a href="{% url 'resumes' %}" 
+                 class="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                </svg>
+                View Full Resume
+              </a>
+            </div>
           </div>
         </div>
       </div>
       {% endfor %}
     {% else %}
-    <!-- Empty State -->
-    <div class="text-center py-16">
-      <svg class="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
-      </svg>
-      <h3 class="text-lg font-medium text-gray-900 mb-2">No matching results yet</h3>
-      <p class="text-gray-500 mb-6">Upload resumes and job descriptions, then run AI matching to find the best candidates</p>
-      <button @click="openMatchingModal()" 
-              class="inline-flex items-center px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold hover:from-blue-700 hover:to-purple-700 transition-all shadow-lg">
-        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <!-- Empty State -->
+      <div class="text-center py-16">
+        <svg class="mx-auto h-12 w-12 text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
         </svg>
-        Start AI Matching
-      </button>
-    </div>
+        <h3 class="text-lg font-medium text-gray-900 mb-2">No matching results yet</h3>
+        <p class="text-gray-500 mb-6">Run AI matching to see candidate compatibility scores</p>
+        <button @click="openMatchingModal()" 
+                class="inline-flex items-center px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-xl font-semibold hover:from-blue-700 hover:to-purple-700 transition-all shadow-lg">
+          <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
+          </svg>
+          Start AI Matching
+        </button>
+      </div>
     {% endif %}
   </div>
 </div>
@@ -491,14 +1232,14 @@ AI Matching
          @click.stop="">
       
       <!-- Modal Header -->
-      <div class="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-blue-50 to-purple-50 rounded-t-2xl">
+      <div class="px-6 py-4 border-b border-gray-200">
         <div class="flex items-center justify-between">
           <div>
             <h3 class="text-xl font-bold text-gray-900">AI Resume Matching</h3>
             <p class="text-sm text-gray-600">Select job description and candidates for matching</p>
           </div>
           <button @click="showModal = false" 
-                  class="text-gray-400 hover:text-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-300 rounded-full p-2 transition-colors">
+                  class="text-gray-400 hover:text-gray-600">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
             </svg>
@@ -612,7 +1353,7 @@ AI Matching
               <span class="text-sm font-medium text-gray-700" x-text="matchingProgress + '%'"></span>
             </div>
             <div class="w-full bg-gray-200 rounded-full h-2">
-              <div class="bg-gradient-to-r from-blue-500 to-purple-500 h-2 rounded-full transition-all duration-500"
+              <div class="bg-blue-500 h-2 rounded-full transition-all duration-500"
                    :style="`width: ${matchingProgress}%`"></div>
             </div>
           </div>
@@ -620,17 +1361,17 @@ AI Matching
       </div>
       
       <!-- Modal Footer -->
-      <div class="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-2xl">
+      <div class="px-6 py-4 border-t border-gray-200 bg-gray-50">
         <div class="flex items-center justify-between">
           <button @click="showModal = false" 
                   :disabled="isMatching"
-                  class="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed">
+                  class="px-4 py-2 text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50">
             Cancel
           </button>
           
           <button @click="runMatching()" 
                   :disabled="!selectedJD || selectedResumes.length === 0 || isMatching"
-                  class="px-6 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2">
+                  class="px-6 py-2 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2">
             <svg x-show="!isMatching" class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>
             </svg>
@@ -641,6 +1382,85 @@ AI Matching
           </button>
         </div>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- Beautiful Email Confirmation Dialog -->
+<div x-show="showEmailConfirmation" 
+     x-transition:enter="transition ease-out duration-300"
+     x-transition:enter-start="opacity-0"
+     x-transition:enter-end="opacity-100"
+     x-transition:leave="transition ease-in duration-200"
+     x-transition:leave-start="opacity-100"
+     x-transition:leave-end="opacity-0"
+     class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+  
+  <div x-show="showEmailConfirmation"
+       x-transition:enter="transition ease-out duration-300"
+       x-transition:enter-start="opacity-0 transform scale-95"
+       x-transition:enter-end="opacity-100 transform scale-100"
+       x-transition:leave="transition ease-in duration-200"
+       x-transition:leave-start="opacity-100 transform scale-100"
+       x-transition:leave-end="opacity-0 transform scale-95"
+       class="bg-white rounded-lg shadow-xl max-w-md w-full mx-4">
+    
+    <!-- Dialog Header -->
+    <div class="px-6 py-4 border-b border-gray-200">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-full flex items-center justify-center"
+             :class="emailConfirmationData.type === 'selection' ? 'bg-green-100' : 'bg-red-100'">
+          <svg class="w-6 h-6" :class="emailConfirmationData.type === 'selection' ? 'text-green-600' : 'text-red-600'" 
+               fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                  d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+          </svg>
+        </div>
+        <div>
+          <h3 class="text-lg font-semibold text-gray-900">Confirm Email Send</h3>
+          <p class="text-sm text-gray-500">
+            <span x-text="emailConfirmationData.type === 'selection' ? 'Send selection emails' : 'Send rejection emails'"></span>
+          </p>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Dialog Content -->
+    <div class="px-6 py-4">
+      <p class="text-gray-700 mb-4">
+        Are you sure you want to send 
+        <span class="font-semibold" :class="emailConfirmationData.type === 'selection' ? 'text-green-600' : 'text-red-600'">
+          <span x-text="emailConfirmationData.type === 'selection' ? 'selection' : 'rejection'"></span> emails
+        </span>
+        to <span class="font-semibold text-gray-900" x-text="emailConfirmationData.count"></span> selected candidate(s)?
+      </p>
+      
+      <div class="bg-gray-50 rounded-lg p-3">
+        <div class="flex items-center gap-2 text-sm text-gray-600">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+          </svg>
+          <span>This action will send emails immediately and cannot be undone.</span>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Dialog Footer -->
+    <div class="px-6 py-4 border-t border-gray-200 flex items-center justify-end gap-3">
+      <button @click="cancelSendEmails()"
+              class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
+        Cancel
+      </button>
+      
+      <button @click="confirmSendEmails()"
+              class="px-4 py-2 text-sm font-medium text-white rounded-lg transition-colors flex items-center gap-2"
+              :class="emailConfirmationData.type === 'selection' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+        </svg>
+        <span x-text="'Send ' + (emailConfirmationData.type === 'selection' ? 'Selection' : 'Rejection') + ' Emails'"></span>
+      </button>
     </div>
   </div>
 </div>

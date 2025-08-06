@@ -36,14 +36,98 @@ from django.utils import timezone
 from datetime import timedelta
 from django.utils import timezone
 from datetime import timedelta
+import json
+import logging
+
+# Configure logging
+logger = logging.getLogger(__name__)
+
+# FastAPI matching service configuration
+FASTAPI_MATCHING_URL = "http://localhost:8001/match-resume"
+FASTAPI_TIMEOUT = 60  # Increased timeout for AI processing
 
 
-def get_notifications():
-    """Helper function to get notifications for header"""
+def call_fastapi_matching_service(job_description, resume):
+    """
+    Call the FastAPI resume matching service
+    
+    Args:
+        job_description: JobDescription model instance
+        resume: Resume model instance
+        
+    Returns:
+        dict: Response from FastAPI service or None if failed
+    """
+    try:
+        # Prepare resume data as JSON string
+        resume_data = {
+            "candidate_name": resume.candidate_name or "Unknown",
+            "email": resume.email or "",
+            "phone": resume.phone or "",
+            "years_of_experience": resume.years_of_experience or 0,
+            "career_level": resume.career_level or "",
+            "experience": resume.work_experience or [],
+            "education": resume.education or [],
+            "skills": resume.skills or [],
+            "certifications": resume.certifications or [],
+            "projects": resume.projects or [],
+            "extracurricular_activities": resume.extracurricular or [],
+            "summary": resume.professional_summary or "",
+            "languages": getattr(resume, 'languages', []) or []
+        }
+        
+        # Prepare request payload
+        payload = {
+            "job_description": job_description.description,
+            "candidate_resume_json": json.dumps(resume_data)
+        }
+        
+        # Make the API call
+        logger.info(f"Calling FastAPI matching service for resume {resume.id}")
+        response = requests.post(
+            FASTAPI_MATCHING_URL,
+            json=payload,
+            headers={"Content-Type": "application/json"},
+            timeout=FASTAPI_TIMEOUT
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            logger.info(f"Successfully processed resume {resume.id}")
+            return result
+        else:
+            logger.error(f"FastAPI service returned status {response.status_code}: {response.text}")
+            return {
+                'success': False,
+                'error': f"Service error: {response.status_code}"
+            }
+            
+    except requests.exceptions.ConnectionError:
+        logger.error("Cannot connect to FastAPI matching service")
+        return {
+            'success': False,
+            'error': "Matching service is not available. Please ensure the AI service is running."
+        }
+    except requests.exceptions.Timeout:
+        logger.error("FastAPI matching service timeout")
+        return {
+            'success': False,
+            'error': "Matching service timeout. Please try again."
+        }
+    except Exception as e:
+        logger.error(f"Error calling FastAPI service: {str(e)}")
+        return {
+            'success': False,
+            'error': f"Unexpected error: {str(e)}"
+        }
+
+
+def get_notifications(user):
+    """Helper function to get notifications for header - filtered by user"""
     notifications = []
     
-    # Get recent resumes for notifications
-    recent_resumes_notif = Resume.objects.order_by('-uploaded_at')[:2]
+    # Get recent resumes for notifications - filtered by user
+    recent_resumes_notif = Resume.objects.filter(user=user).order_by('-uploaded_at')[:2]
     for resume in recent_resumes_notif:
         notifications.append({
             'title': 'New resume uploaded',
@@ -56,8 +140,8 @@ def get_notifications():
             'timestamp': resume.uploaded_at
         })
     
-    # Get recent shortlisted for notifications
-    recent_shortlisted_notif = Shortlisted.objects.select_related('resume').order_by('-created_at')[:2]
+    # Get recent shortlisted for notifications - filtered by user
+    recent_shortlisted_notif = Shortlisted.objects.filter(resume__user=user).select_related('resume').order_by('-created_at')[:2]
     for shortlisted in recent_shortlisted_notif:
         notifications.append({
             'title': 'Candidate shortlisted',
@@ -70,11 +154,12 @@ def get_notifications():
             'timestamp': shortlisted.created_at
         })
     
-    # Get upcoming interviews for notifications
-    upcoming_interviews = Interview.objects.select_related('resume').filter(
+    # Get upcoming interviews for notifications - filtered by user
+    upcoming_interviews = Interview.objects.filter(
+        resume__user=user,
         scheduled_at__gte=timezone.now(),
         scheduled_at__lte=timezone.now() + timedelta(hours=24)
-    ).order_by('scheduled_at')[:1]
+    ).select_related('resume').order_by('scheduled_at')[:1]
     
     for interview in upcoming_interviews:
         notifications.append({
@@ -95,11 +180,13 @@ def get_notifications():
 
 @login_required
 def dashboard_home(request):
-    resumes_count = Resume.objects.count()
-    shortlisted_count = Shortlisted.objects.count()
-    pending_interviews_count = Interview.objects.filter(status='pending').count()
+    # Filter all data by current user
+    user = request.user
+    resumes_count = Resume.objects.filter(user=user).count()
+    shortlisted_count = Shortlisted.objects.filter(resume__user=user).count()
+    pending_interviews_count = Interview.objects.filter(resume__user=user, status='pending').count()
 
-    # Activity data for last 7 days
+    # Activity data for last 7 days - filtered by user
     today = timezone.now().date()
     activity_labels = []
     activity_resumes = []
@@ -108,15 +195,15 @@ def dashboard_home(request):
     for i in range(6, -1, -1):
         day = today - timedelta(days=i)
         activity_labels.append(day.strftime('%a'))
-        activity_resumes.append(Resume.objects.filter(uploaded_at__date=day).count())
-        activity_shortlisted.append(Shortlisted.objects.filter(created_at__date=day).count())
-        activity_interviews.append(Interview.objects.filter(scheduled_at__date=day).count())
+        activity_resumes.append(Resume.objects.filter(user=user, uploaded_at__date=day).count())
+        activity_shortlisted.append(Shortlisted.objects.filter(resume__user=user, created_at__date=day).count())
+        activity_interviews.append(Interview.objects.filter(resume__user=user, scheduled_at__date=day).count())
 
-    # Recent Activities (last 10 activities across all models)
+    # Recent Activities (last 10 activities across all models) - filtered by user
     recent_activities = []
     
-    # Get recent resumes
-    recent_resumes = Resume.objects.order_by('-uploaded_at')[:3]
+    # Get recent resumes for current user only
+    recent_resumes = Resume.objects.filter(user=user).order_by('-uploaded_at')[:3]
     for resume in recent_resumes:
         recent_activities.append({
             'title': 'New resume uploaded',
@@ -129,8 +216,8 @@ def dashboard_home(request):
             'timestamp': resume.uploaded_at
         })
     
-    # Get recent shortlisted candidates
-    recent_shortlisted = Shortlisted.objects.select_related('resume').order_by('-created_at')[:3]
+    # Get recent shortlisted candidates for current user only
+    recent_shortlisted = Shortlisted.objects.filter(resume__user=user).select_related('resume').order_by('-created_at')[:3]
     for shortlisted in recent_shortlisted:
         recent_activities.append({
             'title': 'Candidate shortlisted',
@@ -143,8 +230,8 @@ def dashboard_home(request):
             'timestamp': shortlisted.created_at
         })
     
-    # Get recent interviews
-    recent_interviews = Interview.objects.select_related('resume').order_by('-scheduled_at')[:3]
+    # Get recent interviews for current user only
+    recent_interviews = Interview.objects.filter(resume__user=user).select_related('resume').order_by('-scheduled_at')[:3]
     for interview in recent_interviews:
         # Use scheduled_at since there's no created_at field
         interview_time = interview.scheduled_at or timezone.now()  # fallback if scheduled_at is None
@@ -163,8 +250,8 @@ def dashboard_home(request):
     recent_activities.sort(key=lambda x: x['timestamp'], reverse=True)
     recent_activities = recent_activities[:5]
 
-    # Get notifications
-    notifications = get_notifications()
+    # Get notifications for current user
+    notifications = get_notifications(user)
 
     context = {
         'resumes_count': resumes_count,
@@ -240,7 +327,7 @@ def job_descriptions(request):
     job_descriptions = JobDescription.objects.filter(user=request.user).order_by('-created_at')
     
     # Get notifications for header
-    notifications = get_notifications()
+    notifications = get_notifications(request.user)
     
     return render(request, 'home/job_descriptions.html', {
         'form': form,
@@ -493,7 +580,7 @@ def resumes(request):
             return redirect('resumes')
     
     # Get notifications for header
-    notifications = get_notifications()
+    notifications = get_notifications(request.user)
     
     # Calculate statistics
     total_resumes = sum(jd.resumes.count() for jd in job_descriptions)
@@ -518,7 +605,7 @@ def matching(request):
     """
     Enhanced view for AI-powered resume matching with dynamic JD selection
     """
-    notifications = get_notifications()
+    notifications = get_notifications(request.user)
     
     if request.method == 'POST':
         # Check if it's an AJAX request
@@ -534,7 +621,7 @@ def matching(request):
                 all_resumes = Resume.objects.filter(user=request.user, jobdescription=jd)
                 matched_resume_ids = MatchingResult.objects.filter(
                     user=request.user, 
-                    jobdescription=jd
+                    job_description=jd
                 ).values_list('resume_id', flat=True)
                 
                 unmatched_resumes = all_resumes.exclude(id__in=matched_resume_ids)
@@ -581,18 +668,170 @@ def matching(request):
                         'error': 'No valid resumes selected for matching'
                     })
                 
-                # TODO: Implement actual API call to matching service
-                # For now, return success with count
-                return JsonResponse({
-                    'success': True,
-                    'message': f'Matching initiated for {resumes.count()} resume(s)',
-                    'total_resumes': resumes.count()
-                })
+                # Process each resume through the FastAPI matching service
+                results = []
+                errors = []
+                
+                for resume in resumes:
+                    try:
+                        # Call the FastAPI matching service
+                        result = call_fastapi_matching_service(jd, resume)
+                        
+                        if result and result.get('success'):
+                            # Save the matching result to database
+                            matching_data = result.get('data')
+                            if matching_data:
+                                # Create or update matching result
+                                matching_result, created = MatchingResult.objects.update_or_create(
+                                    user=request.user,
+                                    resume=resume,
+                                    job_description=jd,
+                                    defaults={
+                                        'overall_score': matching_data.get('overall_match_score', 0),
+                                        'skills_score': matching_data.get('skills_match_score', 0),
+                                        'experience_score': matching_data.get('experience_match_score', 0),
+                                        'education_score': matching_data.get('education_match_score', 0),
+                                        'match_reasoning': json.dumps({
+                                            'interview_recommendation': matching_data.get('interview_recommendation', ''),
+                                            'confidence_level': matching_data.get('confidence_level', ''),
+                                            'ranking_tier': matching_data.get('ranking_tier', ''),
+                                            'top_strengths': matching_data.get('scoring_reasoning', {}).get('top_strengths', [])[:3] if matching_data.get('scoring_reasoning') else [],
+                                            'key_interview_topics': matching_data.get('key_interview_topics', [])
+                                        }),
+                                        'matched_skills': json.dumps([skill.get('skill_name', '') for skill in matching_data.get('skill_analysis', []) if skill.get('candidate_has_skill', False)]),
+                                        'missing_skills': json.dumps(matching_data.get('gap_analysis', {}).get('critical_skill_gaps', [])) if matching_data.get('gap_analysis') else json.dumps([]),
+                                        'experience_gap': matching_data.get('experience_analysis', {}).get('experience_level_match', '') if matching_data.get('experience_analysis') else '',
+                                        'created_at': timezone.now()
+                                    }
+                                )
+                                results.append({
+                                    'resume_id': resume.id,
+                                    'candidate_name': resume.candidate_name,
+                                    'score': matching_data.get('overall_match_score', 0),
+                                    'recommendation': matching_data.get('interview_recommendation', ''),
+                                    'created': created
+                                })
+                        else:
+                            error_msg = result.get('error', 'Unknown error') if result else 'No response from matching service'
+                            errors.append(f"{resume.candidate_name}: {error_msg}")
+                            
+                    except Exception as e:
+                        errors.append(f"{resume.candidate_name}: {str(e)}")
+                
+                # Return results
+                if results:
+                    success_msg = f'Successfully processed {len(results)} resume(s)'
+                    if errors:
+                        success_msg += f' ({len(errors)} failed)'
+                    
+                    return JsonResponse({
+                        'success': True,
+                        'message': success_msg,
+                        'results': results,
+                        'errors': errors,
+                        'total_processed': len(results),
+                        'total_errors': len(errors)
+                    })
+                else:
+                    return JsonResponse({
+                        'success': False,
+                        'error': 'Failed to process any resumes',
+                        'errors': errors
+                    })
                 
             except JobDescription.DoesNotExist:
                 return JsonResponse({
                     'success': False,
                     'error': 'Invalid job description selected'
+                })
+        
+        elif 'shortlist_multiple' in request.POST:
+            # Handle multiple candidate shortlisting
+            candidate_ids = request.POST.getlist('candidate_ids')
+            
+            try:
+                # Get matching results that belong to the user
+                matching_results = MatchingResult.objects.filter(
+                    id__in=candidate_ids,
+                    user=request.user,
+                    status='pending'  # Only shortlist pending candidates
+                )
+                
+                # Update status to shortlisted
+                updated_count = matching_results.update(
+                    status='shortlisted',
+                    updated_at=timezone.now()
+                )
+                
+                return JsonResponse({
+                    'success': True,
+                    'message': f'Successfully shortlisted {updated_count} candidate(s)',
+                    'shortlisted_count': updated_count
+                })
+                
+            except Exception as e:
+                return JsonResponse({
+                    'success': False,
+                    'error': f'Failed to shortlist candidates: {str(e)}'
+                })
+        
+        elif 'reject_multiple' in request.POST:
+            # Handle multiple candidate rejection
+            candidate_ids = request.POST.getlist('candidate_ids')
+            
+            try:
+                # Get matching results that belong to the user
+                matching_results = MatchingResult.objects.filter(
+                    id__in=candidate_ids,
+                    user=request.user,
+                    status='pending'  # Only reject pending candidates
+                )
+                
+                # Update status to rejected
+                updated_count = matching_results.update(
+                    status='rejected',
+                    updated_at=timezone.now()
+                )
+                
+                return JsonResponse({
+                    'success': True,
+                    'message': f'Successfully rejected {updated_count} candidate(s)',
+                    'rejected_count': updated_count
+                })
+                
+            except Exception as e:
+                return JsonResponse({
+                    'success': False,
+                    'error': f'Failed to reject candidates: {str(e)}'
+                })
+        
+        elif 'delete_selected' in request.POST:
+            # Handle multiple candidate deletion
+            candidate_ids = request.POST.getlist('candidate_ids')
+            
+            try:
+                # Get matching results that belong to the user
+                matching_results = MatchingResult.objects.filter(
+                    id__in=candidate_ids,
+                    user=request.user
+                )
+                
+                # Count how many will be deleted
+                delete_count = matching_results.count()
+                
+                # Delete the matching results
+                matching_results.delete()
+                
+                return JsonResponse({
+                    'success': True,
+                    'message': f'Successfully deleted {delete_count} matching result(s)',
+                    'deleted_count': delete_count
+                })
+                
+            except Exception as e:
+                return JsonResponse({
+                    'success': False,
+                    'error': f'Failed to delete matching results: {str(e)}'
                 })
     
     # Get job descriptions for the user
@@ -610,6 +849,13 @@ def matching(request):
         overall_score__gte=70, overall_score__lt=90
     ).count()
     
+    # Calculate status-based counts for tabs
+    shortlisted_count = matching_results.filter(status='shortlisted').count()
+    # Count rejected candidates instead of interviewed
+    rejected_count = matching_results.filter(status='rejected').count()
+    # Count pending candidates (those that haven't been shortlisted or rejected)
+    pending_count = matching_results.filter(status='pending').count()
+    
     avg_score = 0
     if total_matches > 0:
         total_score = sum(result.overall_score for result in matching_results)
@@ -623,20 +869,141 @@ def matching(request):
         'total_matches': total_matches,
         'high_score_matches': high_score_matches,
         'medium_score_matches': medium_score_matches,
+        'shortlisted_count': shortlisted_count,
+        'rejected_count': rejected_count,
+        'pending_count': pending_count,
         'avg_score': avg_score,
     })
 
 @login_required
 def shortlisted(request):
-    notifications = get_notifications()
+    notifications = get_notifications(request.user)
+    
+    # Get all shortlisted candidates for the user
+    shortlisted_results = MatchingResult.objects.filter(
+        user=request.user, 
+        status='shortlisted'
+    ).select_related('resume', 'job_description').order_by('-created_at')
+    
+    # Calculate stats
+    total_shortlisted = shortlisted_results.count()
+    
     return render(request, 'home/shortlisted.html', {
         'notifications': notifications,
         'notifications_count': len(notifications),
+        'shortlisted_results': shortlisted_results,
+        'total_shortlisted': total_shortlisted,
     })
+
+
+@login_required
+def shortlist_candidate(request):
+    """Shortlist a candidate from matching results"""
+    if request.method == 'POST' and request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        try:
+            result_id = request.POST.get('result_id')
+            matching_result = MatchingResult.objects.get(
+                id=result_id, 
+                user=request.user
+            )
+            
+            # Update status to shortlisted
+            matching_result.status = 'shortlisted'
+            matching_result.save()
+            
+            # Also create a Shortlisted record for backward compatibility
+            shortlisted, created = Shortlisted.objects.get_or_create(
+                resume=matching_result.resume
+            )
+            
+            return JsonResponse({
+                'success': True,
+                'message': f'{matching_result.resume.candidate_name} has been shortlisted!'
+            })
+            
+        except MatchingResult.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Matching result not found'
+            })
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'error': str(e)
+            })
+    
+    return JsonResponse({'success': False, 'error': 'Invalid request'})
+
+
+@login_required
+def reject_candidate(request):
+    """Reject a candidate from matching results"""
+    if request.method == 'POST' and request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        try:
+            result_id = request.POST.get('result_id')
+            matching_result = MatchingResult.objects.get(
+                id=result_id, 
+                user=request.user
+            )
+            
+            # Update status to rejected
+            matching_result.status = 'rejected'
+            matching_result.save()
+            
+            return JsonResponse({
+                'success': True,
+                'message': f'{matching_result.resume.candidate_name} has been rejected.'
+            })
+            
+        except MatchingResult.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Matching result not found'
+            })
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'error': str(e)
+            })
+    
+    return JsonResponse({'success': False, 'error': 'Invalid request'})
+
+
+@login_required
+def delete_matching_result(request):
+    """Delete a matching result"""
+    if request.method == 'POST' and request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+        try:
+            result_id = request.POST.get('result_id')
+            matching_result = MatchingResult.objects.get(
+                id=result_id, 
+                user=request.user
+            )
+            
+            candidate_name = matching_result.resume.candidate_name
+            matching_result.delete()
+            
+            return JsonResponse({
+                'success': True,
+                'message': f'Matching result for {candidate_name} has been deleted.'
+            })
+            
+        except MatchingResult.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Matching result not found'
+            })
+        except Exception as e:
+            return JsonResponse({
+                'success': False,
+                'error': str(e)
+            })
+    
+    return JsonResponse({'success': False, 'error': 'Invalid request'})
 
 @login_required
 def emails(request):
-    notifications = get_notifications()
+    notifications = get_notifications(request.user)
     return render(request, 'home/emails.html', {
         'notifications': notifications,
         'notifications_count': len(notifications),
@@ -644,7 +1011,7 @@ def emails(request):
 
 @login_required
 def interviews(request):
-    notifications = get_notifications()
+    notifications = get_notifications(request.user)
     return render(request, 'home/interviews.html', {
         'notifications': notifications,
         'notifications_count': len(notifications),
@@ -652,7 +1019,7 @@ def interviews(request):
 
 @login_required
 def reports(request):
-    notifications = get_notifications()
+    notifications = get_notifications(request.user)
     return render(request, 'home/reports.html', {
         'notifications': notifications,
         'notifications_count': len(notifications),
@@ -699,7 +1066,7 @@ def profile_view(request):
                 messages.error(request, 'Please correct the errors below.')
 
     # Get notifications for header
-    notifications = get_notifications()
+    notifications = get_notifications(request.user)
 
     return render(request, 'home/profile.html', {
         'user_form': user_form,
