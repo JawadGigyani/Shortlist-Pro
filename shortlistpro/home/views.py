@@ -856,6 +856,12 @@ def matching(request):
     # Count pending candidates (those that haven't been shortlisted or rejected)
     pending_count = matching_results.filter(status='pending').count()
     
+    # Calculate email status counts
+    selection_emails_sent = matching_results.filter(email_status='selection_sent').count()
+    rejection_emails_sent = matching_results.filter(email_status='rejection_sent').count()
+    emails_not_sent = matching_results.filter(email_status='not_sent').count()
+    emails_sent_count = selection_emails_sent + rejection_emails_sent
+    
     avg_score = 0
     if total_matches > 0:
         total_score = sum(result.overall_score for result in matching_results)
@@ -873,6 +879,11 @@ def matching(request):
         'rejected_count': rejected_count,
         'pending_count': pending_count,
         'avg_score': avg_score,
+        'hr_user_id': request.user.id,  # Add user ID for email links
+        'selection_emails_sent': selection_emails_sent,
+        'rejection_emails_sent': rejection_emails_sent,
+        'emails_not_sent': emails_not_sent,
+        'emails_sent_count': emails_sent_count,
     })
 
 @login_required
@@ -1075,3 +1086,133 @@ def profile_view(request):
         'notifications': notifications,
         'notifications_count': len(notifications),
     })
+
+def candidate_interview(request, hr_user_id):
+    """
+    Public view for candidates to access their interview.
+    No authentication required - validates email against shortlisted candidates for specific HR user.
+    """
+    context = {
+        'step': 'email_validation',  # email_validation or interview_ready
+        'error_message': None,
+        'candidate_data': None,
+    }
+    
+    # Validate that the hr_user_id exists
+    try:
+        from django.contrib.auth.models import User
+        hr_user = User.objects.get(id=hr_user_id)
+    except User.DoesNotExist:
+        context['error_message'] = "Invalid interview link. Please contact HR for assistance."
+        return render(request, 'home/candidate_interview.html', context)
+    
+    if request.method == 'POST':
+        email = request.POST.get('email', '').strip().lower()
+        
+        if not email:
+            context['error_message'] = "Please enter your email address."
+            return render(request, 'home/candidate_interview.html', context)
+        
+        try:
+            # Find the candidate's resume and check if they are shortlisted for interview
+            resume = Resume.objects.filter(email__iexact=email).first()
+            
+            if not resume:
+                context['error_message'] = "Email not found in our system. Please check your email address."
+                return render(request, 'home/candidate_interview.html', context)
+            
+            # Debug: Log all matching results for this resume and HR user
+            all_matches = MatchingResult.objects.filter(resume=resume, user=hr_user)
+            logger.info(f"DEBUG: All matches for {email} with HR user {hr_user_id}: {[(m.id, m.status, m.job_description.title) for m in all_matches]}")
+            
+            # Check if the candidate has any shortlisted matching results for this HR user (exclude rejected ones)
+            shortlisted_matches = MatchingResult.objects.filter(
+                resume=resume,
+                user=hr_user,  # Filter by specific HR user
+                status='shortlisted'
+            ).select_related('job_description')
+            
+            # Also check if there are any rejected matches for this HR user to provide better error message
+            rejected_matches = MatchingResult.objects.filter(
+                resume=resume,
+                user=hr_user,  # Filter by specific HR user
+                status='rejected'
+            ).exists()
+            
+            # STRICT CHECK: If ANY match is rejected for this HR user, block access entirely
+            pending_matches = MatchingResult.objects.filter(
+                resume=resume,
+                user=hr_user,  # Filter by specific HR user
+                status='pending'
+            ).exists()
+            
+            # Debug: Log shortlisted and rejected counts for this HR user
+            logger.info(f"DEBUG: For HR user {hr_user_id} - Shortlisted count: {shortlisted_matches.count()}, Rejected exists: {rejected_matches}, Pending exists: {pending_matches}")
+            
+            # Enhanced validation: Only allow if there are shortlisted matches for this HR user AND no rejected/pending
+            if not shortlisted_matches.exists():
+                if rejected_matches:
+                    context['error_message'] = "Thank you for your interest in our position. After careful consideration, we have decided to move forward with other candidates whose qualifications more closely match our current requirements. We appreciate the time you invested in your application and wish you the best in your career endeavors."
+                elif pending_matches:
+                    context['error_message'] = "Your application is still under review. Please wait for further communication."
+                else:
+                    context['error_message'] = "No interview invitation found for this email address."
+                return render(request, 'home/candidate_interview.html', context)
+            
+            # Get the most recent shortlisted match for interview for this HR user
+            latest_match = shortlisted_matches.order_by('-created_at').first()
+            logger.info(f"DEBUG: Latest shortlisted match for HR user {hr_user_id}: {latest_match.id}, Status: {latest_match.status}")
+            
+            context.update({
+                'step': 'interview_ready',
+                'candidate_data': {
+                    'name': resume.candidate_name or 'Candidate',
+                    'email': resume.email,
+                    'position': latest_match.job_description.title,
+                    'company': latest_match.job_description.department or 'Our Company',
+                    'match_id': latest_match.id,
+                }
+            })
+            
+        except Exception as e:
+            logger.error(f"Error validating candidate email {email}: {str(e)}")
+            context['error_message'] = "An error occurred while validating your email. Please try again."
+    
+    return render(request, 'home/candidate_interview.html', context)
+
+def debug_check_status(request, email):
+    """Debug view to check candidate status in database"""
+    try:
+        resume = Resume.objects.filter(email__iexact=email).first()
+        if not resume:
+            return JsonResponse({'error': 'Email not found'})
+        
+        # Get all matching results for this resume
+        matches = MatchingResult.objects.filter(resume=resume).select_related('job_description')
+        
+        results = []
+        for match in matches:
+            results.append({
+                'id': match.id,
+                'status': match.status,
+                'email_status': match.email_status,
+                'position': match.job_description.title,
+                'company': match.job_description.department,
+                'overall_score': float(match.overall_score),
+                'created_at': match.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                'updated_at': match.updated_at.strftime('%Y-%m-%d %H:%M:%S'),
+            })
+        
+        return JsonResponse({
+            'email': email,
+            'candidate_name': resume.candidate_name,
+            'total_matches': len(results),
+            'matches': results,
+            'shortlisted_count': len([r for r in results if r['status'] == 'shortlisted']),
+            'rejected_count': len([r for r in results if r['status'] == 'rejected']),
+            'pending_count': len([r for r in results if r['status'] == 'pending']),
+            'emails_sent_count': len([r for r in results if r.get('email_status') in ['selection_sent', 'rejection_sent']]),
+        })
+        
+    except Exception as e:
+        return JsonResponse({'error': str(e)})

@@ -21,6 +21,10 @@ urlpatterns = [
     path('dashboard/interviews/', views.interviews, name='interviews'),
     path('dashboard/reports/', views.reports, name='reports'),
     path('dashboard/profile/', views.profile_view, name='profile'),
+    # Candidate interview access (no authentication required) - user-specific
+    path('interview/<int:hr_user_id>/', views.candidate_interview, name='candidate_interview'),
+    # Debug view to check database status
+    path('debug/check-status/<str:email>/', views.debug_check_status, name='debug_check_status'),
     # path('register/', views.register, name='register'),
     # path('login/', auth_views.LoginView.as_view(template_name='registration/login.html'), name='login'),
 ]

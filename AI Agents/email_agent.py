@@ -38,6 +38,7 @@ app.add_middleware(
 class EmailRequest(BaseModel):
     candidate_ids: List[int]
     email_type: str  # "selection" or "rejection"
+    hr_user_id: int  # ID of the HR user sending emails
 
 def get_db_connection():
     """Get database connection"""
@@ -72,7 +73,7 @@ def get_candidate_data(candidate_ids: List[int]):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
-def create_selection_email(candidate_name: str, position: str, company: str):
+def create_selection_email(candidate_name: str, position: str, company: str, hr_user_id: int):
     """Create beautiful selection email template"""
     subject = f"🎉 Interview Invitation - {position} at {company}"
     
@@ -147,11 +148,33 @@ def create_selection_email(candidate_name: str, position: str, company: str):
             <!-- Next Steps -->
             <div style="background-color: #f0f9ff; border: 1px solid #e0f2fe; border-radius: 8px; padding: 20px; margin-bottom: 30px;">
                 <h3 style="color: #1e40af; margin: 0 0 15px 0; font-size: 18px; font-weight: 600;">
-                    📞 What's Next?
+                    � Start Your Interview
                 </h3>
-                <ul style="color: #475569; margin: 0; padding-left: 20px; font-size: 15px;">
-                    <li style="margin-bottom: 8px;">Our HR team will contact you within 2-3 business days</li>
-                    <li style="margin-bottom: 8px;">We'll schedule a convenient time for your interview</li>
+                <p style="color: #475569; margin: 0 0 15px 0; font-size: 15px;">
+                    You can now access your AI-powered initial interview. Click the button below to begin:
+                </p>
+                
+                <!-- Interview Button -->
+                <div style="text-align: center; margin: 20px 0;">
+                    <a href="http://localhost:8000/interview/{hr_user_id}/" 
+                       style="display: inline-block; background: linear-gradient(135deg, #10b981 0%, #3b82f6 100%); color: #ffffff; padding: 15px 30px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 16px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+                        🎯 Access Interview Portal
+                    </a>
+                </div>
+                
+                <p style="color: #6b7280; margin: 0; font-size: 14px; text-align: center;">
+                    <em>Use your email address to access the interview</em>
+                </p>
+            </div>
+            
+            <!-- Additional Information -->
+            <div style="background-color: #fef3f2; border: 1px solid #fecaca; border-radius: 8px; padding: 20px; margin-bottom: 30px;">
+                <h3 style="color: #dc2626; margin: 0 0 15px 0; font-size: 18px; font-weight: 600;">
+                    📞 Alternative: Phone Interview
+                </h3>
+                <ul style="color: #7f1d1d; margin: 0; padding-left: 20px; font-size: 15px;">
+                    <li style="margin-bottom: 8px;">If you prefer, our HR team will also contact you within 2-3 business days</li>
+                    <li style="margin-bottom: 8px;">We'll schedule a convenient time for a phone interview</li>
                     <li style="margin-bottom: 0;">Please keep your phone accessible for our call</li>
                 </ul>
             </div>
@@ -353,6 +376,7 @@ async def send_candidate_emails(request: EmailRequest):
             position = candidate['position'] or "Position"
             company = candidate['company'] or "Our Company"
             email = candidate['email']
+            matching_result_id = candidate['id']  # Get the matching result ID
             
             if not email:
                 failed_emails.append(f"{candidate_name} (no email)")
@@ -360,7 +384,7 @@ async def send_candidate_emails(request: EmailRequest):
             
             # Create email based on type
             if request.email_type == "selection":
-                subject, body = create_selection_email(candidate_name, position, company)
+                subject, body = create_selection_email(candidate_name, position, company, request.hr_user_id)
             elif request.email_type == "rejection":
                 subject, body = create_rejection_email(candidate_name, position, company)
             else:
@@ -369,6 +393,23 @@ async def send_candidate_emails(request: EmailRequest):
             # Send email
             if send_email(email, subject, body):
                 success_count += 1
+                # Update email status in database
+                try:
+                    conn = get_db_connection()
+                    cursor = conn.cursor()
+                    cursor.execute("""
+                        UPDATE home_matchingresult 
+                        SET email_status = %s
+                        WHERE id = %s
+                    """, (
+                        'selection_sent' if request.email_type == 'selection' else 'rejection_sent',
+                        matching_result_id
+                    ))
+                    conn.commit()
+                    cursor.close()
+                    conn.close()
+                except Exception as db_error:
+                    print(f"Warning: Failed to update email status for candidate {matching_result_id}: {db_error}")
             else:
                 failed_emails.append(f"{candidate_name} ({email})")
         

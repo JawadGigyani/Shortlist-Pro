@@ -94,6 +94,13 @@ class MatchingResult(models.Model):
         ('rejected', 'Rejected'),
     ]
     
+    # Email status choices
+    EMAIL_STATUS_CHOICES = [
+        ('not_sent', 'Not Sent'),
+        ('selection_sent', 'Selection Email Sent'),
+        ('rejection_sent', 'Rejection Email Sent'),
+    ]
+    
     # Core relationships
     resume = models.ForeignKey(Resume, on_delete=models.CASCADE, related_name='matching_results')
     job_description = models.ForeignKey(JobDescription, on_delete=models.CASCADE, related_name='matching_results')
@@ -101,6 +108,7 @@ class MatchingResult(models.Model):
     
     # Status tracking
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    email_status = models.CharField(max_length=20, choices=EMAIL_STATUS_CHOICES, default='not_sent')
     
     # Matching scores (0-100)
     overall_score = models.DecimalField(max_digits=5, decimal_places=2, default=0.00)
