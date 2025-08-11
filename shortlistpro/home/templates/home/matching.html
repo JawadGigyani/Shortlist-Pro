@@ -113,8 +113,22 @@ AI Matching
   },
   
   selectAllVisible: function() {
-    // Get all candidate IDs that are visible in the current tab
-    const visibleCandidatesInTab = [];
+    // Get all candidate IDs that are currently visible after all filters are applied
+    const visibleCandidateIds = [];
+    
+    // Get all candidate cards that are currently visible (not hidden by filters)
+    document.querySelectorAll('.candidate-card').forEach(card => {
+      // Check if the card is visible (display is not 'none')
+      if (card.style.display !== 'none') {
+        const candidateId = card.dataset.candidateId;
+        if (candidateId) {
+          visibleCandidateIds.push(candidateId);
+        }
+      }
+    });
+    
+    // Also need to check the tab filter for the visible cards
+    const visibleCandidatesInCurrentTab = [];
     {% if matching_results %}
     const allCandidates = [
       {% for result in matching_results %}
@@ -125,27 +139,28 @@ AI Matching
       {% endfor %}
     ];
     
-    // Filter candidates by current active tab
-    allCandidates.forEach(candidate => {
-      if (candidate.status === this.activeTab) {
-        visibleCandidatesInTab.push(candidate.id);
+    // Filter to only include candidates that are both visible (after filters) and in current tab
+    visibleCandidateIds.forEach(visibleId => {
+      const candidate = allCandidates.find(c => c.id === visibleId);
+      if (candidate && candidate.status === this.activeTab) {
+        visibleCandidatesInCurrentTab.push(visibleId);
       }
     });
     {% endif %}
     
-    // Check if all visible candidates in current tab are already selected
-    const allTabCandidatesSelected = visibleCandidatesInTab.every(id => 
+    // Check if all visible candidates in current tab and filters are already selected
+    const allVisibleSelected = visibleCandidatesInCurrentTab.every(id => 
       this.selectedCandidates.includes(id)
     );
     
-    if (allTabCandidatesSelected && visibleCandidatesInTab.length > 0) {
-      // Deselect all candidates from current tab
+    if (allVisibleSelected && visibleCandidatesInCurrentTab.length > 0) {
+      // Deselect all visible candidates
       this.selectedCandidates = this.selectedCandidates.filter(id => 
-        !visibleCandidatesInTab.includes(id)
+        !visibleCandidatesInCurrentTab.includes(id)
       );
     } else {
-      // Select all candidates from current tab (add only new ones)
-      visibleCandidatesInTab.forEach(id => {
+      // Select all visible candidates (add only new ones)
+      visibleCandidatesInCurrentTab.forEach(id => {
         if (!this.selectedCandidates.includes(id)) {
           this.selectedCandidates.push(id);
         }

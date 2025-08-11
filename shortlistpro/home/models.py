@@ -4,6 +4,7 @@ from django.db import models
 class Profile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     profile_picture = models.ImageField(upload_to='profiles/', blank=True, null=True)
+    company_name = models.CharField(max_length=255, default='')
     is_premium = models.BooleanField(default=False)
 
     def __str__(self):
@@ -142,21 +143,19 @@ class MatchingResult(models.Model):
     @property
     def confidence_level(self):
         """Return confidence level based on overall score"""
-        if self.overall_score >= 90:
+        if self.overall_score >= 70:
             return 'High'
-        elif self.overall_score >= 70:
+        elif self.overall_score >= 50:
             return 'Medium'
         else:
             return 'Low'
     
     @property
     def match_category(self):
-        """Categorize match quality"""
-        if self.overall_score >= 90:
-            return 'Excellent Match'
-        elif self.overall_score >= 80:
-            return 'Good Match'
-        elif self.overall_score >= 70:
-            return 'Fair Match'
+        """Categorize match quality for simplified screening"""
+        if self.overall_score >= 60:
+            return 'Interview'
+        elif self.overall_score >= 40:
+            return 'Maybe'
         else:
-            return 'Poor Match'
+            return 'Skip'

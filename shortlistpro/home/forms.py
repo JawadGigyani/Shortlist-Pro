@@ -11,7 +11,13 @@ class UserForm(forms.ModelForm):
 class ProfileForm(forms.ModelForm):
     class Meta:
         model = Profile
-        fields = ['profile_picture']
+        fields = ['profile_picture', 'company_name']
+        widgets = {
+            'company_name': forms.TextInput(attrs={
+                'class': 'w-full border rounded px-3 py-2',
+                'placeholder': 'Enter your company/organization name'
+            })
+        }
 
 
 # Job Description Form
@@ -53,15 +59,8 @@ class CustomRegistrationForm(RegistrationForm):
     first_name = forms.CharField(max_length=30, required=True, help_text='Required')
     last_name = forms.CharField(max_length=30, required=True, help_text='Required')
     email = forms.EmailField(required=True, help_text='Required')
-    # ...existing code...
-from registration.forms import RegistrationForm
-from django import forms
-from django.contrib.auth.models import User
-
-class CustomRegistrationForm(RegistrationForm):
-    first_name = forms.CharField(max_length=30, required=True, help_text='Required')
-    last_name = forms.CharField(max_length=30, required=True, help_text='Required')
-    email = forms.EmailField(required=True, help_text='Required')
+    company_name = forms.CharField(max_length=255, required=True, help_text='Required', 
+                                   widget=forms.TextInput(attrs={'placeholder': 'Enter your company/organization name'}))
 
     def clean_email(self):
         email = self.cleaned_data.get('email')
@@ -77,4 +76,8 @@ class CustomRegistrationForm(RegistrationForm):
 
         if commit:
             user.save()
+            # Create or update profile with company name
+            profile, created = Profile.objects.get_or_create(user=user)
+            profile.company_name = self.cleaned_data['company_name']
+            profile.save()
         return user

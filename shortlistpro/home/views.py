@@ -687,28 +687,30 @@ def matching(request):
                                     resume=resume,
                                     job_description=jd,
                                     defaults={
-                                        'overall_score': matching_data.get('overall_match_score', 0),
-                                        'skills_score': matching_data.get('skills_match_score', 0),
-                                        'experience_score': matching_data.get('experience_match_score', 0),
-                                        'education_score': matching_data.get('education_match_score', 0),
+                                        'overall_score': matching_data.get('overall_score', 0),
+                                        'skills_score': matching_data.get('skills_score', 0),
+                                        'experience_score': matching_data.get('experience_score', 0),
+                                        'education_score': matching_data.get('education_score', 0),
                                         'match_reasoning': json.dumps({
-                                            'interview_recommendation': matching_data.get('interview_recommendation', ''),
-                                            'confidence_level': matching_data.get('confidence_level', ''),
-                                            'ranking_tier': matching_data.get('ranking_tier', ''),
-                                            'top_strengths': matching_data.get('scoring_reasoning', {}).get('top_strengths', [])[:3] if matching_data.get('scoring_reasoning') else [],
-                                            'key_interview_topics': matching_data.get('key_interview_topics', [])
+                                            'interview_recommendation': matching_data.get('recommendation', ''),
+                                            'confidence_level': matching_data.get('confidence', ''),
+                                            'interview_priority': matching_data.get('interview_priority', ''),
+                                            'top_strengths': matching_data.get('strengths', []),
+                                            'concerns': matching_data.get('concerns', []),
+                                            'conversation_topics': matching_data.get('conversation_topics', []),
+                                            'key_questions': matching_data.get('key_questions', [])
                                         }),
-                                        'matched_skills': json.dumps([skill.get('skill_name', '') for skill in matching_data.get('skill_analysis', []) if skill.get('candidate_has_skill', False)]),
-                                        'missing_skills': json.dumps(matching_data.get('gap_analysis', {}).get('critical_skill_gaps', [])) if matching_data.get('gap_analysis') else json.dumps([]),
-                                        'experience_gap': matching_data.get('experience_analysis', {}).get('experience_level_match', '') if matching_data.get('experience_analysis') else '',
+                                        'matched_skills': json.dumps(matching_data.get('matched_skills', [])),
+                                        'missing_skills': json.dumps(matching_data.get('missing_skills', [])),
+                                        'experience_gap': (matching_data.get('experience_summary', '') or '')[:255],
                                         'created_at': timezone.now()
                                     }
                                 )
                                 results.append({
                                     'resume_id': resume.id,
                                     'candidate_name': resume.candidate_name,
-                                    'score': matching_data.get('overall_match_score', 0),
-                                    'recommendation': matching_data.get('interview_recommendation', ''),
+                                    'score': matching_data.get('overall_score', 0),
+                                    'recommendation': matching_data.get('recommendation', ''),
                                     'created': created
                                 })
                         else:

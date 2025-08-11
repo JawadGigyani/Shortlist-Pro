@@ -56,10 +56,12 @@ def get_candidate_data(candidate_ids: List[int]):
             r.candidate_name,
             r.email,
             jd.title as position,
-            jd.department as company
+            p.company_name as company
         FROM home_matchingresult mr
         JOIN home_resume r ON mr.resume_id = r.id
         JOIN home_jobdescription jd ON mr.job_description_id = jd.id
+        JOIN auth_user u ON jd.user_id = u.id
+        JOIN home_profile p ON u.id = p.user_id
         WHERE mr.id = ANY(%s)
         """
         
