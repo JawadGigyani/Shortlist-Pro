@@ -1,0 +1,343 @@
+{% extends 'home/dashboard_base.html' %}
+{% load static %}
+
+{% block title %}Interview Recording - {{ recording.candidate_name }} - ShortlistPro{% endblock %}
+
+{% block dashboard_title %}
+Interview Recording Details
+{% endblock %}
+
+{% block dashboard_content %}
+
+<!-- Page Header with Gradient -->
+<div class="bg-gradient-to-r from-blue-600 via-purple-600 to-blue-800 rounded-2xl p-8 mb-8 text-white">
+  <div class="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+    <div>
+      <nav class="flex mb-3" aria-label="Breadcrumb">
+        <ol class="inline-flex items-center space-x-1 md:space-x-3">
+          <li class="inline-flex items-center">
+            <a href="{% url 'interviews' %}" class="text-blue-100 hover:text-white transition-colors">
+              Interviews
+            </a>
+          </li>
+          <li>
+            <div class="flex items-center">
+              <svg class="w-4 h-4 text-blue-200 mx-2" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/>
+              </svg>
+              <span class="text-blue-100">{{ recording.candidate_name }}</span>
+            </div>
+          </li>
+        </ol>
+      </nav>
+      <h1 class="text-3xl font-bold mb-2">{{ recording.candidate_name }}</h1>
+      <p class="text-blue-100">Interview Recording - {{ recording.job_title }}</p>
+    </div>
+    <div class="flex items-center gap-3">
+      <a href="{% url 'interviews' %}" class="bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300 flex items-center gap-2">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
+        </svg>
+        Back to List
+      </a>
+    </div>
+  </div>
+</div>
+
+<!-- Status and Quick Stats -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+  <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+    <div class="flex items-center justify-between">
+      <div>
+        <p class="text-sm font-medium text-gray-600">Status</p>
+        <div class="flex items-center gap-2 mt-1">
+          {% if recording.status == 'completed' %}
+            <div class="bg-green-100 p-2 rounded-lg">
+              <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+            </div>
+          {% elif recording.status == 'processing' %}
+            <div class="bg-yellow-100 p-2 rounded-lg">
+              <svg class="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+            </div>
+          {% else %}
+            <div class="bg-red-100 p-2 rounded-lg">
+              <svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+            </div>
+          {% endif %}
+          <span class="font-semibold text-gray-900">{{ recording.get_status_display }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+    <div class="flex items-center justify-between">
+      <div>
+        <p class="text-sm font-medium text-gray-600">Total Messages</p>
+        <p class="text-2xl font-bold text-gray-900">{{ stats.total_messages }}</p>
+      </div>
+      <div class="bg-blue-100 p-3 rounded-lg">
+        <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+    <div class="flex items-center justify-between">
+      <div>
+        <p class="text-sm font-medium text-gray-600">Responses</p>
+        <p class="text-2xl font-bold text-gray-900">{{ stats.candidate_responses }}</p>
+      </div>
+      <div class="bg-green-100 p-3 rounded-lg">
+        <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+        </svg>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+  <!-- Left Column: Audio Player and Info -->
+  <div class="lg:col-span-1">
+    <!-- Audio Player -->
+    {% if recording.audio_file %}
+    <div class="bg-gradient-to-br from-blue-600 to-purple-700 rounded-2xl p-6 text-white mb-6">
+      <div class="flex items-center gap-3 mb-4">
+        <div class="bg-white/20 p-3 rounded-xl">
+          <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M8 5v14l11-7z"/>
+          </svg>
+        </div>
+        <h3 class="text-xl font-semibold">Audio Recording</h3>
+      </div>
+      <audio controls class="w-full mb-4" style="filter: invert(1) brightness(0.8);">
+        <source src="{{ recording.audio_file.url }}" type="audio/mpeg">
+        Your browser does not support the audio element.
+      </audio>
+    </div>
+    {% else %}
+    <div class="bg-white rounded-xl border-2 border-dashed border-orange-300 p-8 text-center mb-6">
+      <div class="bg-orange-100 p-4 rounded-full w-fit mx-auto mb-4">
+        <svg class="w-8 h-8 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"/>
+        </svg>
+      </div>
+      <h4 class="text-lg font-semibold text-gray-900 mb-2">Audio Not Available</h4>
+      <p class="text-gray-600">Audio file could not be retrieved from ElevenLabs.</p>
+    </div>
+    {% endif %}
+
+    <!-- Interview Information -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+      <h4 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+        <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        Interview Information
+      </h4>
+      <div class="space-y-4">
+        <div class="flex justify-between">
+          <span class="text-gray-600">Candidate:</span>
+          <span class="font-semibold text-gray-900">{{ recording.candidate_name }}</span>
+        </div>
+        <div class="flex justify-between">
+          <span class="text-gray-600">Position:</span>
+          <span class="font-semibold text-gray-900">{{ recording.job_title }}</span>
+        </div>
+        <div class="border-t pt-4">
+          <span class="text-gray-600 text-sm">Conversation ID:</span>
+          <p class="font-mono text-sm text-gray-800 bg-gray-50 p-2 rounded mt-1 break-all">{{ recording.conversation_id }}</p>
+        </div>
+        {% if recording.started_at %}
+        <div class="flex justify-between">
+          <span class="text-gray-600">Started:</span>
+          <span class="text-gray-900">{{ recording.started_at|date:"M d, Y H:i" }}</span>
+        </div>
+        {% endif %}
+        {% if recording.ended_at %}
+        <div class="flex justify-between">
+          <span class="text-gray-600">Ended:</span>
+          <span class="text-gray-900">{{ recording.ended_at|date:"M d, Y H:i" }}</span>
+        </div>
+        {% endif %}
+        <div class="flex justify-between">
+          <span class="text-gray-600">Created:</span>
+          <span class="text-gray-900">{{ recording.created_at|date:"M d, Y H:i" }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Files Download -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      <h4 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+        <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+        </svg>
+        Download Files
+      </h4>
+      <div class="space-y-3">
+        <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+          <div class="flex items-center gap-3">
+            <div class="bg-blue-100 p-2 rounded-lg">
+              <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 14.142M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/>
+              </svg>
+            </div>
+            <span class="font-medium text-gray-900">Audio Recording</span>
+          </div>
+          {% if recording.audio_file %}
+            <a href="{{ recording.audio_file.url }}" download class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+              </svg>
+              Download
+            </a>
+          {% else %}
+            <span class="text-gray-400 text-sm">Not Available</span>
+          {% endif %}
+        </div>
+        
+        <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+          <div class="flex items-center gap-3">
+            <div class="bg-green-100 p-2 rounded-lg">
+              <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+              </svg>
+            </div>
+            <span class="font-medium text-gray-900">Transcript File</span>
+          </div>
+          {% if recording.transcript_file %}
+            <a href="{{ recording.transcript_file.url }}" download class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+              </svg>
+              Download
+            </a>
+          {% else %}
+            <span class="text-gray-400 text-sm">Not Available</span>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Right Column: Transcript -->
+  <div class="lg:col-span-2">
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 h-fit">
+      <div class="p-6 border-b border-gray-200">
+        <h3 class="text-xl font-semibold text-gray-900 flex items-center gap-2">
+          <svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+          </svg>
+          Interview Transcript
+        </h3>
+        <p class="text-gray-600 text-sm mt-1">Complete conversation between interviewer and candidate</p>
+      </div>
+      
+      <div class="p-6 max-h-[800px] overflow-y-auto">
+        {% if messages %}
+          <div class="space-y-4">
+            {% for message in messages %}
+            <div class="group">
+              <div class="flex items-start gap-4 {% if message.speaker == 'user' %}flex-row-reverse{% endif %}">
+                <div class="flex-shrink-0">
+                  {% if message.speaker == 'user' %}
+                    <div class="bg-green-100 p-2 rounded-full">
+                      <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                      </svg>
+                    </div>
+                  {% elif message.speaker == 'assistant' %}
+                    <div class="bg-blue-100 p-2 rounded-full">
+                      <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                      </svg>
+                    </div>
+                  {% else %}
+                    <div class="bg-gray-100 p-2 rounded-full">
+                      <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"/>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                      </svg>
+                    </div>
+                  {% endif %}
+                </div>
+                
+                <div class="flex-1 {% if message.speaker == 'user' %}text-right{% endif %}">
+                  <div class="flex items-center gap-2 mb-1 {% if message.speaker == 'user' %}justify-end{% endif %}">
+                    <span class="font-semibold text-gray-900">
+                      {% if message.speaker == 'user' %}
+                        {{ recording.candidate_name }}
+                      {% elif message.speaker == 'assistant' %}
+                        AI Interviewer
+                      {% else %}
+                        System
+                      {% endif %}
+                    </span>
+                    <span class="text-xs text-gray-500">
+                      {{ message.timestamp|date:"H:i:s" }}
+                      {% if message.duration_ms %}
+                        • {{ message.duration_ms }}ms
+                      {% endif %}
+                    </span>
+                  </div>
+                  
+                  <div class="{% if message.speaker == 'user' %}bg-green-50 border-l-4 border-green-400{% elif message.speaker == 'assistant' %}bg-blue-50 border-l-4 border-blue-400{% else %}bg-gray-50 border-l-4 border-gray-400{% endif %} p-4 rounded-lg">
+                    <div class="text-gray-900 leading-relaxed">
+                      {{ message.message_content|linebreaks }}
+                    </div>
+                    {% if message.confidence_score %}
+                    <div class="mt-2 text-xs text-gray-500">
+                      Confidence: {{ message.confidence_score|floatformat:2 }}
+                    </div>
+                    {% endif %}
+                  </div>
+                </div>
+              </div>
+            </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="text-center py-12">
+            <div class="bg-gray-100 p-6 rounded-full w-fit mx-auto mb-4">
+              <svg class="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+              </svg>
+            </div>
+            <h4 class="text-xl font-semibold text-gray-900 mb-2">No Transcript Available</h4>
+            <p class="text-gray-600 mb-6">The interview transcript could not be retrieved or processed.</p>
+            
+            {% if recording.status == 'failed' %}
+            <button onclick="retryFetch()" class="bg-yellow-600 hover:bg-yellow-700 text-white px-6 py-3 rounded-xl font-semibold transition-colors flex items-center gap-2 mx-auto">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+              </svg>
+              Retry Data Fetch
+            </button>
+            {% endif %}
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function retryFetch() {
+    if (confirm('This will attempt to refetch the interview data from ElevenLabs. Continue?')) {
+        // You can implement an AJAX call here or show instructions
+        alert('Use the management command: python manage.py retry_elevenlabs_data --conversation-id {{ recording.conversation_id }}');
+    }
+}
+</script>
+
+{% endblock %}

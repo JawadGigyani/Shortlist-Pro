@@ -31,3 +31,14 @@ start_fastapi_server.bat
 shortlistpro/media/
 */media/
 media/
+
+
+# Ignore testing section and all test code
+thesis_testing_section.tex
+tests/
+main.pdf
+
+shortlistpro/test_elevenlabs.py
+shortlistpro/test_elevenlabs_complete.py
+
+

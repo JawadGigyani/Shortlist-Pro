@@ -251,7 +251,7 @@ async def root():
 
 if __name__ == "__main__":
     # Run the server
-    port = int(os.getenv("PORT", 8002))  # Default to port 8002
+    port = int(os.getenv("PORT", 8001))  # Default to port 8002
     uvicorn.run(
         "resume_matching:app",
         host="0.0.0.0",

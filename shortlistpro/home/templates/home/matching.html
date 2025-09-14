@@ -983,7 +983,7 @@ function showAlert(message, type) {
                     {% elif result.email_status == 'rejection_sent' %}
                       <span class="px-2 py-1 text-xs font-medium bg-orange-100 text-orange-800 rounded-full flex items-center gap-1">
                         <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2 2v10a2 2 0 002 2z"/>
                         </svg>
                         Email Sent
                       </span>
@@ -1160,6 +1160,59 @@ function showAlert(message, type) {
                 View Full Resume
               </a>
             </div>
+            
+            <!-- Interview Questions Section (only show for shortlisted candidates) -->
+            {% if result.status == 'shortlisted' %}
+              <div class="pt-4 border-t border-gray-200 mt-4">
+                <h5 class="font-medium text-gray-900 mb-3 flex items-center gap-2">
+                  <svg class="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                  </svg>
+                  Interview Questions
+                </h5>
+                
+                {% if result.has_interview_questions %}
+                  <!-- Questions Generated -->
+                  <div class="bg-green-50 border border-green-200 rounded-lg p-3 mb-3">
+                    <div class="flex items-center gap-2 text-green-800 text-sm font-medium mb-2">
+                      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                      </svg>
+                      {{ result.safe_interview_questions.total_questions }} Questions Ready
+                      <span class="text-green-600">• {{ result.safe_interview_questions.estimated_duration }}</span>
+                      <span class="text-green-600">• {{ result.safe_interview_questions.complexity_level|title }} Level</span>
+                    </div>
+                  </div>
+                  
+                  <!-- Questions List -->
+                  <div class="space-y-2">
+                    {% for question in result.safe_interview_questions.questions %}
+                      <div class="bg-gray-50 border border-gray-200 rounded p-3">
+                        <div class="text-sm font-medium text-gray-900 mb-1">
+                          {{ forloop.counter }}. {{ question.question }}
+                        </div>
+                        {% if question.purpose %}
+                          <div class="text-xs text-gray-600 italic">
+                            Purpose: {{ question.purpose }}
+                          </div>
+                        {% endif %}
+                      </div>
+                    {% endfor %}
+                  </div>
+                  
+                {% else %}
+                  <!-- Questions Being Generated -->
+                  <div class="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                    <div class="flex items-center gap-2 text-blue-800 text-sm">
+                      <svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                      </svg>
+                      Generating interview questions...
+                    </div>
+                  </div>
+                {% endif %}
+              </div>
+            {% endif %}
           </div>
         </div>
       </div>

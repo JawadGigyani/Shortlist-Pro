@@ -1,0 +1,184 @@
+{% extends "home/dashboard_base.html" %}
+{% load static %}
+
+{% block title %}Interview Session - {{ candidate.candidate_name }}{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl mx-auto">
+    <!-- Back Button -->
+    <div class="mb-6">
+        <a href="{% url 'interviews' %}" 
+           class="inline-flex items-center text-blue-600 hover:text-blue-800">
+            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+            </svg>
+            Back to Interviews
+        </a>
+    </div>
+
+    <!-- Session Header -->
+    <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center">
+                <div class="flex-shrink-0 h-16 w-16">
+                    <div class="h-16 w-16 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center">
+                        <span class="text-white font-bold text-xl">
+                            {{ candidate.candidate_name|first|upper|default:"?" }}
+                        </span>
+                    </div>
+                </div>
+                <div class="ml-6">
+                    <h1 class="text-2xl font-bold text-gray-900">{{ candidate.candidate_name|default:"Unknown Candidate" }}</h1>
+                    <p class="text-gray-600">{{ candidate.email|default:"No email provided" }}</p>
+                    <p class="text-sm text-gray-500">Interview for: {{ job.title }} at {{ job.department }}</p>
+                </div>
+            </div>
+            <div class="text-right">
+                {% if session.status == 'completed' %}
+                    <span class="inline-flex px-3 py-1 text-sm font-semibold rounded-full bg-green-100 text-green-800">
+                        Completed
+                    </span>
+                {% elif session.status == 'in_progress' %}
+                    <span class="inline-flex px-3 py-1 text-sm font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                        In Progress
+                    </span>
+                {% elif session.status == 'partial' %}
+                    <span class="inline-flex px-3 py-1 text-sm font-semibold rounded-full bg-orange-100 text-orange-800">
+                        Partial
+                    </span>
+                {% else %}
+                    <span class="inline-flex px-3 py-1 text-sm font-semibold rounded-full bg-red-100 text-red-800">
+                        Failed
+                    </span>
+                {% endif %}
+                <div class="text-sm text-gray-500 mt-2">{{ session.started_at|date:"M j, Y g:i A" }}</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Session Details -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Session Details</h3>
+            <div class="space-y-3">
+                <div class="flex justify-between">
+                    <span class="text-gray-600">Duration:</span>
+                    <span class="font-medium">{{ session.duration_formatted }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-600">Questions Asked:</span>
+                    <span class="font-medium">{{ session.questions_asked }} / {{ session.total_questions_planned }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-600">Completion:</span>
+                    <span class="font-medium">{{ session.completion_percentage }}%</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2">
+                    <div class="bg-blue-600 h-2 rounded-full" style="width: {{ session.completion_percentage }}%"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Candidate Info</h3>
+            <div class="space-y-3">
+                <div class="flex justify-between">
+                    <span class="text-gray-600">Experience:</span>
+                    <span class="font-medium">{{ candidate.years_of_experience }} years</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-600">Level:</span>
+                    <span class="font-medium">{{ candidate.career_level|default:"Not specified" }}</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-600">Location:</span>
+                    <span class="font-medium">{{ candidate.location|default:"Not specified" }}</span>
+                </div>
+                {% if candidate.linkedin_url %}
+                <div class="flex justify-between">
+                    <span class="text-gray-600">LinkedIn:</span>
+                    <a href="{{ candidate.linkedin_url }}" target="_blank" class="text-blue-600 hover:text-blue-800">
+                        <svg class="w-4 h-4 inline" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M12.586 4.586a2 2 0 112.828 2.828l-3 3a2 2 0 01-2.828 0 1 1 0 00-1.414 1.414 4 4 0 005.656 0l3-3a4 4 0 00-5.656-5.656l-1.5 1.5a1 1 0 101.414 1.414l1.5-1.5z" clip-rule="evenodd"></path>
+                            <path fill-rule="evenodd" d="M4.929 3.515a1 1 0 00-1.414 1.414l3 3a1 1 0 101.414-1.414l-3-3z" clip-rule="evenodd"></path>
+                        </svg>
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Interview Summary</h3>
+            <div class="text-sm text-gray-700">
+                {% if session.interview_summary %}
+                    {{ session.interview_summary }}
+                {% else %}
+                    <p class="text-gray-500 italic">Summary will be generated after interview completion.</p>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Conversation Transcript -->
+    <div class="bg-white rounded-lg shadow-md">
+        <div class="p-6 border-b border-gray-200">
+            <h3 class="text-lg font-semibold text-gray-900">Interview Transcript</h3>
+            <p class="text-sm text-gray-600 mt-1">Complete conversation between AI interviewer and candidate</p>
+        </div>
+        
+        {% if transcript %}
+        <div class="p-6">
+            <div class="space-y-4 max-h-96 overflow-y-auto">
+                {% for message in transcript %}
+                <div class="flex {% if message.is_candidate %}justify-end{% else %}justify-start{% endif %}">
+                    <div class="max-w-3xl {% if message.is_candidate %}bg-blue-100 text-blue-900{% else %}bg-gray-100 text-gray-900{% endif %} rounded-lg p-4">
+                        <div class="flex items-center mb-2">
+                            {% if message.is_candidate %}
+                                <div class="w-6 h-6 bg-blue-600 rounded-full flex items-center justify-center mr-2">
+                                    <span class="text-white text-xs font-medium">C</span>
+                                </div>
+                                <span class="text-sm font-medium text-blue-800">Candidate</span>
+                            {% else %}
+                                <div class="w-6 h-6 bg-gray-600 rounded-full flex items-center justify-center mr-2">
+                                    <span class="text-white text-xs font-medium">AI</span>
+                                </div>
+                                <span class="text-sm font-medium text-gray-800">AI Interviewer</span>
+                            {% endif %}
+                            {% if message.timestamp %}
+                                <span class="text-xs text-gray-500 ml-auto">
+                                    {{ message.timestamp|date:"g:i A" }}
+                                </span>
+                            {% endif %}
+                        </div>
+                        <p class="text-sm leading-relaxed">{{ message.content }}</p>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% else %}
+        <div class="p-12 text-center text-gray-500">
+            <svg class="w-12 h-12 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
+            </svg>
+            <p class="text-lg font-medium">No transcript available</p>
+            <p class="text-sm">The interview transcript will appear here once the interview is completed.</p>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Actions -->
+    <div class="mt-6 flex justify-end space-x-4">
+        <a href="{% url 'matching' %}" 
+           class="bg-gray-200 text-gray-700 px-6 py-2 rounded-md hover:bg-gray-300 transition-colors">
+            View Matching Results
+        </a>
+        {% if session.status == 'completed' %}
+        <button class="bg-green-600 text-white px-6 py-2 rounded-md hover:bg-green-700 transition-colors">
+            Generate Report
+        </button>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

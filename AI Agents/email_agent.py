@@ -56,6 +56,7 @@ def get_candidate_data(candidate_ids: List[int]):
             r.candidate_name,
             r.email,
             jd.title as position,
+            jd.id as jd_id,
             p.company_name as company
         FROM home_matchingresult mr
         JOIN home_resume r ON mr.resume_id = r.id
@@ -75,7 +76,7 @@ def get_candidate_data(candidate_ids: List[int]):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
-def create_selection_email(candidate_name: str, position: str, company: str, hr_user_id: int):
+def create_selection_email(candidate_name: str, position: str, company: str, hr_user_id: int, jd_id: int):
     """Create beautiful selection email template"""
     subject = f"🎉 Interview Invitation - {position} at {company}"
     
@@ -158,7 +159,7 @@ def create_selection_email(candidate_name: str, position: str, company: str, hr_
                 
                 <!-- Interview Button -->
                 <div style="text-align: center; margin: 20px 0;">
-                    <a href="http://localhost:8000/interview/{hr_user_id}/" 
+                    <a href="http://localhost:8000/interview/{hr_user_id}/{jd_id}/" 
                        style="display: inline-block; background: linear-gradient(135deg, #10b981 0%, #3b82f6 100%); color: #ffffff; padding: 15px 30px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 16px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
                         🎯 Access Interview Portal
                     </a>
@@ -378,7 +379,12 @@ async def send_candidate_emails(request: EmailRequest):
             position = candidate['position'] or "Position"
             company = candidate['company'] or "Our Company"
             email = candidate['email']
+            jd_id = candidate['jd_id']
             matching_result_id = candidate['id']  # Get the matching result ID
+            
+            print(f"DEBUG EMAIL AGENT: Processing candidate {candidate_name} (email: {email})")
+            print(f"DEBUG EMAIL AGENT: JD ID: {jd_id}, HR User ID: {request.hr_user_id}")
+            print(f"DEBUG EMAIL AGENT: Interview URL will be: http://localhost:8000/interview/{request.hr_user_id}/{jd_id}/")
             
             if not email:
                 failed_emails.append(f"{candidate_name} (no email)")
@@ -386,7 +392,8 @@ async def send_candidate_emails(request: EmailRequest):
             
             # Create email based on type
             if request.email_type == "selection":
-                subject, body = create_selection_email(candidate_name, position, company, request.hr_user_id)
+                subject, body = create_selection_email(candidate_name, position, company, request.hr_user_id, jd_id)
+                print(f"DEBUG EMAIL AGENT: Created selection email with URL containing HR ID {request.hr_user_id} and JD ID {jd_id}")
             elif request.email_type == "rejection":
                 subject, body = create_rejection_email(candidate_name, position, company)
             else:
@@ -395,24 +402,42 @@ async def send_candidate_emails(request: EmailRequest):
             # Send email
             if send_email(email, subject, body):
                 success_count += 1
-                # Update email status in database
+                print(f"DEBUG EMAIL AGENT: Successfully sent email to {email} for candidate {candidate_name}")
+                # Update email status and candidate status in database
                 try:
                     conn = get_db_connection()
                     cursor = conn.cursor()
-                    cursor.execute("""
-                        UPDATE home_matchingresult 
-                        SET email_status = %s
-                        WHERE id = %s
-                    """, (
-                        'selection_sent' if request.email_type == 'selection' else 'rejection_sent',
-                        matching_result_id
-                    ))
+                    
+                    if request.email_type == 'selection':
+                        print(f"DEBUG EMAIL AGENT: Updating MatchingResult ID {matching_result_id} - setting email_status='selection_sent' and status='shortlisted'")
+                        # For selection emails, update both email_status AND status to shortlisted
+                        cursor.execute("""
+                            UPDATE home_matchingresult 
+                            SET email_status = %s, status = %s
+                            WHERE id = %s
+                        """, ('selection_sent', 'shortlisted', matching_result_id))
+                        
+                        # Verify the update
+                        cursor.execute("SELECT status, email_status FROM home_matchingresult WHERE id = %s", (matching_result_id,))
+                        result = cursor.fetchone()
+                        print(f"DEBUG EMAIL AGENT: After update - MatchingResult ID {matching_result_id}: status='{result['status']}', email_status='{result['email_status']}'")
+                    else:
+                        print(f"DEBUG EMAIL AGENT: Updating MatchingResult ID {matching_result_id} - setting email_status='rejection_sent'")
+                        # For rejection emails, only update email_status
+                        cursor.execute("""
+                            UPDATE home_matchingresult 
+                            SET email_status = %s
+                            WHERE id = %s
+                        """, ('rejection_sent', matching_result_id))
+                    
                     conn.commit()
                     cursor.close()
                     conn.close()
+                    print(f"DEBUG EMAIL AGENT: Database update successful for candidate {matching_result_id}")
                 except Exception as db_error:
-                    print(f"Warning: Failed to update email status for candidate {matching_result_id}: {db_error}")
+                    print(f"WARNING EMAIL AGENT: Failed to update email status for candidate {matching_result_id}: {db_error}")
             else:
+                print(f"DEBUG EMAIL AGENT: Failed to send email to {email} for candidate {candidate_name}")
                 failed_emails.append(f"{candidate_name} ({email})")
         
         return {

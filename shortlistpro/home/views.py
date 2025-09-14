@@ -24,14 +24,19 @@ def terms_of_service(request):
 
 
 import requests
+import os
+import json
+import logging
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.contrib.auth.forms import PasswordChangeForm
 from django.contrib.auth import update_session_auth_hash
-from django.shortcuts import redirect
+from django.shortcuts import redirect, get_object_or_404
 from django.http import JsonResponse
+from django.views.decorators.http import require_http_methods
+from django.views.decorators.csrf import csrf_exempt
 from .forms import UserForm, ProfileForm, JobDescriptionForm, ResumeForm
-from .models import Resume, Shortlisted, Interview, JobDescription, MatchingResult
+from .models import Resume, Shortlisted, Interview, JobDescription, MatchingResult, InterviewQuestions, InterviewSession, InterviewRecording, InterviewMessage
 from django.utils import timezone
 from datetime import timedelta
 from django.utils import timezone
@@ -42,9 +47,138 @@ import logging
 # Configure logging
 logger = logging.getLogger(__name__)
 
-# FastAPI matching service configuration
+# FastAPI service configurations
 FASTAPI_MATCHING_URL = "http://localhost:8001/match-resume"
+FASTAPI_INTERVIEW_QUESTIONS_URL = "http://localhost:8004/generate-questions"
 FASTAPI_TIMEOUT = 60  # Increased timeout for AI processing
+
+
+def call_fastapi_interview_questions_service(matching_result):
+    """
+    Call the FastAPI interview questions generation service
+    
+    Args:
+        matching_result: MatchingResult model instance
+        
+    Returns:
+        dict: API response with generated questions or error info
+    """
+    try:
+        # Prepare resume data as string
+        resume_info = f"""
+Candidate: {matching_result.resume.candidate_name}
+Email: {matching_result.resume.email}
+Phone: {matching_result.resume.phone or 'Not provided'}
+Location: {matching_result.resume.location or 'Not provided'}
+Career Level: {matching_result.resume.career_level}
+Years of Experience: {matching_result.resume.years_of_experience}
+
+Professional Summary:
+{matching_result.resume.professional_summary or 'Not provided'}
+
+Skills: {', '.join(matching_result.resume.skills or [])}
+
+Work Experience:
+{json.dumps(matching_result.resume.work_experience or [], indent=2)}
+
+Education:
+{json.dumps(matching_result.resume.education or [], indent=2)}
+
+Projects:
+{json.dumps(matching_result.resume.projects or [], indent=2)}
+
+Certifications:
+{json.dumps(matching_result.resume.certifications or [], indent=2)}
+        """.strip()
+        
+        # Prepare job description as string
+        job_desc = f"""
+Title: {matching_result.job_description.title}
+Department: {matching_result.job_description.department}
+Description: {matching_result.job_description.description}
+        """.strip()
+        
+        # Prepare matching results
+        matching_data = {
+            "overall_score": float(matching_result.overall_score),
+            "skills_score": float(matching_result.skills_score),
+            "experience_score": float(matching_result.experience_score),
+            "education_score": float(matching_result.education_score),
+            "matched_skills": matching_result.matched_skills or [],
+            "missing_skills": matching_result.missing_skills or [],
+            "experience_gap": matching_result.experience_gap or ""
+        }
+        
+        payload = {
+            "resume_data": resume_info,
+            "job_description": job_desc,
+            "matching_results": matching_data
+        }
+        
+        logger.info(f"Calling interview questions service for matching result {matching_result.id}")
+        logger.info(f"Resume data length: {len(resume_info)} chars")
+        logger.info(f"Job description length: {len(job_desc)} chars")
+        
+        response = requests.post(
+            FASTAPI_INTERVIEW_QUESTIONS_URL,
+            json=payload,
+            timeout=FASTAPI_TIMEOUT
+        )
+        
+        logger.info(f"Interview questions service response status: {response.status_code}")
+        
+        if response.status_code == 200:
+            logger.info(f"Interview questions generated successfully for matching result {matching_result.id}")
+            response_data = response.json()
+            
+            # Format response to match expected structure
+            return {
+                "success": True,
+                "questions": [
+                    {
+                        "question": q["question"],
+                        "category": q["category"],
+                        "purpose": q["purpose"],
+                        "priority": q.get("priority", "medium")
+                    } for q in response_data["questions"]
+                ],
+                "metadata": {
+                    "total_questions": response_data["total_questions"],
+                    "estimated_duration": response_data["estimated_duration"],
+                    "complexity_level": response_data["complexity_level"],
+                    "focus_areas": response_data["focus_areas"],
+                    "question_distribution": response_data["question_distribution"]
+                }
+            }
+        else:
+            logger.error(f"Interview questions service error: {response.status_code} - {response.text}")
+            return {
+                "success": False,
+                "error": f"Service returned status {response.status_code}",
+                "details": response.text
+            }
+            
+    except requests.exceptions.Timeout:
+        logger.error(f"Interview questions service timeout for matching result {matching_result.id}")
+        return {
+            "success": False,
+            "error": "Interview questions service timeout",
+            "details": "The service took too long to respond"
+        }
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Interview questions service request error: {str(e)}")
+        return {
+            "success": False,
+            "error": "Failed to connect to interview questions service",
+            "details": str(e)
+        }
+    except Exception as e:
+        logger.error(f"Unexpected error calling interview questions service: {str(e)}")
+        return {
+            "success": False,
+            "error": "Unexpected error occurred",
+            "details": str(e)
+        }
 
 
 def call_fastapi_matching_service(job_description, resume):
@@ -752,6 +886,8 @@ def matching(request):
             candidate_ids = request.POST.getlist('candidate_ids')
             
             try:
+                logger.info(f"Processing bulk shortlist for {len(candidate_ids)} candidates")
+                
                 # Get matching results that belong to the user
                 matching_results = MatchingResult.objects.filter(
                     id__in=candidate_ids,
@@ -759,19 +895,76 @@ def matching(request):
                     status='pending'  # Only shortlist pending candidates
                 )
                 
-                # Update status to shortlisted
-                updated_count = matching_results.update(
-                    status='shortlisted',
-                    updated_at=timezone.now()
-                )
+                shortlisted_candidates = []
+                questions_generated = 0
+                questions_failed = 0
+                
+                # Process each candidate individually for interview questions
+                for matching_result in matching_results:
+                    # Update status to shortlisted
+                    matching_result.status = 'shortlisted'
+                    matching_result.updated_at = timezone.now()
+                    matching_result.save()
+                    
+                    # Also create Shortlisted record for backward compatibility
+                    Shortlisted.objects.get_or_create(resume=matching_result.resume)
+                    
+                    shortlisted_candidates.append(matching_result.resume.candidate_name)
+                    
+                    # Generate interview questions for each candidate
+                    try:
+                        if not hasattr(matching_result, 'interview_questions'):
+                            logger.info(f"Generating questions for {matching_result.resume.candidate_name}")
+                            
+                            questions_response = call_fastapi_interview_questions_service(matching_result)
+                            
+                            if questions_response.get('success'):
+                                questions_data = questions_response.get('questions', [])
+                                metadata = questions_response.get('metadata', {})
+                                
+                                InterviewQuestions.objects.create(
+                                    matching_result=matching_result,
+                                    questions=questions_data,
+                                    total_questions=len(questions_data),
+                                    estimated_duration=metadata.get('estimated_duration', '30-45 minutes'),
+                                    complexity_level=metadata.get('complexity_level', 'mid'),
+                                    focus_areas=metadata.get('focus_areas', []),
+                                    question_distribution=metadata.get('question_distribution', {}),
+                                    status='generated'
+                                )
+                                
+                                questions_generated += 1
+                                logger.info(f"Generated questions for {matching_result.resume.candidate_name}")
+                            else:
+                                questions_failed += 1
+                                logger.warning(f"Failed to generate questions for {matching_result.resume.candidate_name}")
+                        else:
+                            logger.info(f"Questions already exist for {matching_result.resume.candidate_name}")
+                            
+                    except Exception as e:
+                        questions_failed += 1
+                        logger.error(f"Error generating questions for {matching_result.resume.candidate_name}: {str(e)}")
+                
+                # Prepare response message
+                message = f'Successfully shortlisted {len(shortlisted_candidates)} candidate(s)'
+                if questions_generated > 0:
+                    message += f'. Generated interview questions for {questions_generated} candidate(s)'
+                if questions_failed > 0:
+                    message += f'. Failed to generate questions for {questions_failed} candidate(s)'
+                
+                logger.info(message)
                 
                 return JsonResponse({
                     'success': True,
-                    'message': f'Successfully shortlisted {updated_count} candidate(s)',
-                    'shortlisted_count': updated_count
+                    'message': message,
+                    'shortlisted_count': len(shortlisted_candidates),
+                    'questions_generated': questions_generated,
+                    'questions_failed': questions_failed,
+                    'candidates': shortlisted_candidates
                 })
                 
             except Exception as e:
+                logger.error(f"Error in bulk shortlist: {str(e)}")
                 return JsonResponse({
                     'success': False,
                     'error': f'Failed to shortlist candidates: {str(e)}'
@@ -841,7 +1034,7 @@ def matching(request):
     
     # Get existing matching results for display
     matching_results = MatchingResult.objects.filter(user=request.user).select_related(
-        'resume', 'job_description'
+        'resume', 'job_description', 'interview_questions'
     ).order_by('-overall_score', '-created_at')
     
     # Calculate statistics
@@ -911,7 +1104,7 @@ def shortlisted(request):
 
 @login_required
 def shortlist_candidate(request):
-    """Shortlist a candidate from matching results"""
+    """Shortlist a candidate from matching results and generate interview questions"""
     if request.method == 'POST' and request.headers.get('X-Requested-With') == 'XMLHttpRequest':
         try:
             result_id = request.POST.get('result_id')
@@ -929,9 +1122,68 @@ def shortlist_candidate(request):
                 resume=matching_result.resume
             )
             
+            # Generate interview questions for the shortlisted candidate
+            questions_result = None
+            questions_error = None
+            
+            try:
+                logger.info(f"Processing shortlist for matching result {result_id}")
+                
+                # Check if interview questions already exist
+                if not hasattr(matching_result, 'interview_questions'):
+                    logger.info(f"No existing questions found, generating new ones for {matching_result.resume.candidate_name}")
+                    
+                    # Call the interview questions generation service
+                    questions_response = call_fastapi_interview_questions_service(matching_result)
+                    
+                    logger.info(f"Questions service response: {questions_response.get('success', False)}")
+                    
+                    if questions_response.get('success'):
+                        # Save the generated questions to database
+                        questions_data = questions_response.get('questions', [])
+                        metadata = questions_response.get('metadata', {})
+                        
+                        logger.info(f"Saving {len(questions_data)} questions to database")
+                        
+                        interview_questions = InterviewQuestions.objects.create(
+                            matching_result=matching_result,
+                            questions=questions_data,
+                            total_questions=len(questions_data),
+                            estimated_duration=metadata.get('estimated_duration', '30-45 minutes'),
+                            complexity_level=metadata.get('complexity_level', 'mid'),
+                            focus_areas=metadata.get('focus_areas', []),
+                            question_distribution=metadata.get('question_distribution', {}),
+                            status='generated'
+                        )
+                        
+                        logger.info(f"Generated {len(questions_data)} interview questions for {matching_result.resume.candidate_name}")
+                        questions_result = f"Generated {len(questions_data)} interview questions"
+                    else:
+                        questions_error = questions_response.get('error', 'Failed to generate questions')
+                        logger.warning(f"Failed to generate interview questions: {questions_error}")
+                        logger.warning(f"Full response: {questions_response}")
+                else:
+                    questions_result = "Interview questions already exist"
+                    logger.info(f"Interview questions already exist for {matching_result.resume.candidate_name}")
+                    
+            except Exception as e:
+                questions_error = f"Error generating interview questions: {str(e)}"
+                logger.error(f"Error generating interview questions for matching result {result_id}: {str(e)}")
+            
+            # Prepare response message
+            base_message = f'{matching_result.resume.candidate_name} has been shortlisted!'
+            if questions_result:
+                message = f"{base_message} {questions_result}."
+            elif questions_error:
+                message = f"{base_message} Warning: {questions_error}"
+            else:
+                message = base_message
+            
             return JsonResponse({
                 'success': True,
-                'message': f'{matching_result.resume.candidate_name} has been shortlisted!'
+                'message': message,
+                'questions_generated': bool(questions_result),
+                'questions_error': questions_error
             })
             
         except MatchingResult.DoesNotExist:
@@ -940,6 +1192,7 @@ def shortlist_candidate(request):
                 'error': 'Matching result not found'
             })
         except Exception as e:
+            logger.error(f"Error in shortlist_candidate: {str(e)}")
             return JsonResponse({
                 'success': False,
                 'error': str(e)
@@ -1023,12 +1276,136 @@ def emails(request):
     })
 
 @login_required
-def interviews(request):
-    notifications = get_notifications(request.user)
-    return render(request, 'home/interviews.html', {
-        'notifications': notifications,
-        'notifications_count': len(notifications),
-    })
+def interview_dashboard(request):
+    """Unified dashboard showing all voice interviews (ElevenLabs recordings only)"""
+    user = request.user
+    
+    # Get search and filter parameters
+    search_query = request.GET.get('search', '').strip()
+    current_status = request.GET.get('status', '')
+    
+    # Get only ElevenLabs InterviewRecordings (voice interviews)
+    recordings = InterviewRecording.objects.filter(
+        matching_result__user=user
+    ).select_related(
+        'matching_result__resume',
+        'matching_result__job_description'
+    ).prefetch_related('messages').order_by('-created_at')
+    
+    # Apply search filter
+    if search_query:
+        recordings = recordings.filter(
+            matching_result__resume__candidate_name__icontains=search_query
+        )
+    
+    # Apply status filter with simplified mapping
+    if current_status:
+        if current_status == 'complete':
+            recordings = recordings.filter(status='completed')
+        elif current_status == 'pending':
+            recordings = recordings.filter(status__in=['pending', 'processing'])
+        elif current_status == 'failed':
+            recordings = recordings.filter(status='failed')
+    
+    # Convert to unified format with simplified status mapping
+    all_interviews = []
+    
+    for recording in recordings:
+        # Simplify status mapping to your 3 required statuses
+        if recording.status == 'completed':
+            status = 'complete'
+        elif recording.status in ['pending', 'processing']:
+            status = 'pending'
+        elif recording.status == 'failed':
+            status = 'failed'
+        else:
+            status = 'pending'  # Default fallback
+            
+        all_interviews.append({
+            'id': recording.id,
+            'interview_type': 'recording',  # All are voice recordings now
+            'candidate_name': (recording.matching_result.resume.candidate_name if recording.matching_result else 'Unknown') or 'Unknown',
+            'candidate_email': (recording.matching_result.resume.email if recording.matching_result else '') or '',
+            'job_title': (recording.matching_result.job_description.title if recording.matching_result else 'Unknown Position') or 'Unknown Position',
+            'job_department': getattr(recording.matching_result.job_description if recording.matching_result else None, 'department', '') or '',
+            'status': status,
+            'created_at': recording.created_at,
+            'conversation_id': recording.conversation_id,
+            'has_audio': bool(recording.audio_file),
+            'has_transcript': bool(recording.transcript_file),
+        })
+    
+    # Calculate summary statistics with simplified statuses
+    total_interviews = len(all_interviews)
+    completed = len([i for i in all_interviews if i['status'] == 'complete'])
+    pending = len([i for i in all_interviews if i['status'] == 'pending'])
+    failed = len([i for i in all_interviews if i['status'] == 'failed'])
+    
+    stats = {
+        'total_interviews': total_interviews,
+        'completed': completed,
+        'pending': pending,
+        'failed': failed,
+    }
+    
+    context = {
+        'all_interviews': all_interviews,
+        'stats': stats,
+        'search_query': search_query,
+        'current_status': current_status,
+        'notifications': get_notifications(user),
+    }
+    
+    return render(request, 'home/interview_dashboard.html', context)
+
+@login_required
+@require_http_methods(["POST"])
+def delete_interviews(request):
+    """Delete interview recordings (individual or bulk)"""
+    user = request.user
+    
+    try:
+        # Get the interview IDs to delete
+        interview_ids = request.POST.getlist('interview_ids')
+        if not interview_ids:
+            messages.error(request, 'No interviews selected for deletion.')
+            return redirect('interviews')
+        
+        # Get recordings that belong to the current user
+        recordings = InterviewRecording.objects.filter(
+            id__in=interview_ids,
+            matching_result__user=user
+        )
+        
+        deleted_count = 0
+        for recording in recordings:
+            try:
+                # Delete audio file if exists
+                if recording.audio_file:
+                    if recording.audio_file.path and os.path.exists(recording.audio_file.path):
+                        os.remove(recording.audio_file.path)
+                
+                # Delete transcript file if exists  
+                if recording.transcript_file:
+                    if recording.transcript_file.path and os.path.exists(recording.transcript_file.path):
+                        os.remove(recording.transcript_file.path)
+                
+                # Delete the database record
+                candidate_name = recording.matching_result.resume.candidate_name if recording.matching_result else 'Unknown'
+                recording.delete()
+                deleted_count += 1
+                
+            except Exception as e:
+                messages.warning(request, f'Failed to delete interview for {candidate_name}: {str(e)}')
+        
+        if deleted_count > 0:
+            messages.success(request, f'Successfully deleted {deleted_count} interview record(s) and associated files.')
+        
+        return redirect('interviews')
+        
+    except Exception as e:
+        messages.error(request, f'Error deleting interviews: {str(e)}')
+        return redirect('interviews')
 
 @login_required
 def reports(request):
@@ -1089,10 +1466,10 @@ def profile_view(request):
         'notifications_count': len(notifications),
     })
 
-def candidate_interview(request, hr_user_id):
+def candidate_interview(request, hr_user_id, jd_id):
     """
     Public view for candidates to access their interview.
-    No authentication required - validates email against shortlisted candidates for specific HR user.
+    No authentication required - validates email against shortlisted candidates for specific HR user and JD.
     """
     context = {
         'step': 'email_validation',  # email_validation or interview_ready
@@ -1108,6 +1485,13 @@ def candidate_interview(request, hr_user_id):
         context['error_message'] = "Invalid interview link. Please contact HR for assistance."
         return render(request, 'home/candidate_interview.html', context)
     
+    # Validate that the jd_id exists and belongs to this HR user
+    try:
+        job_description = JobDescription.objects.get(id=jd_id, user=hr_user)
+    except JobDescription.DoesNotExist:
+        context['error_message'] = "Invalid job description or unauthorized access. Please contact HR for assistance."
+        return render(request, 'home/candidate_interview.html', context)
+    
     if request.method == 'POST':
         email = request.POST.get('email', '').strip().lower()
         
@@ -1116,63 +1500,116 @@ def candidate_interview(request, hr_user_id):
             return render(request, 'home/candidate_interview.html', context)
         
         try:
-            # Find the candidate's resume and check if they are shortlisted for interview
-            resume = Resume.objects.filter(email__iexact=email).first()
+            # Find the candidate's resume for this specific HR user and JD
+            resume = Resume.objects.filter(
+                email__iexact=email,
+                user=hr_user,
+                jobdescription=job_description
+            ).first()
             
             if not resume:
-                context['error_message'] = "Email not found in our system. Please check your email address."
+                context['error_message'] = "No application found for this email address for this specific position. Please check your email address or contact HR."
                 return render(request, 'home/candidate_interview.html', context)
             
-            # Debug: Log all matching results for this resume and HR user
-            all_matches = MatchingResult.objects.filter(resume=resume, user=hr_user)
-            logger.info(f"DEBUG: All matches for {email} with HR user {hr_user_id}: {[(m.id, m.status, m.job_description.title) for m in all_matches]}")
+            # Debug: Log the specific match validation
+            logger.info(f"DEBUG INTERVIEW ACCESS: Starting HR+JD specific validation for email={email}, hr_user_id={hr_user_id}, jd_id={jd_id}")
+            logger.info(f"DEBUG INTERVIEW ACCESS: Resume found - ID={resume.id}, candidate_name={resume.candidate_name}")
             
-            # Check if the candidate has any shortlisted matching results for this HR user (exclude rejected ones)
+            # Check if the candidate has shortlisted matching result for this specific HR user and JD
             shortlisted_matches = MatchingResult.objects.filter(
                 resume=resume,
-                user=hr_user,  # Filter by specific HR user
+                user=hr_user,
+                job_description=job_description,
                 status='shortlisted'
             ).select_related('job_description')
+            logger.info(f"DEBUG INTERVIEW ACCESS: Shortlisted matches count: {shortlisted_matches.count()}")
             
-            # Also check if there are any rejected matches for this HR user to provide better error message
+            # Also check for candidates who have been sent selection emails for this specific HR+JD
+            selection_email_matches = MatchingResult.objects.filter(
+                resume=resume,
+                user=hr_user,
+                job_description=job_description,
+                email_status='selection_sent'
+            ).select_related('job_description')
+            logger.info(f"DEBUG INTERVIEW ACCESS: Selection email matches count: {selection_email_matches.count()}")
+            
+            # Combine both queries - candidate is eligible if they have shortlisted status OR selection email sent
+            eligible_matches = shortlisted_matches.union(selection_email_matches)
+            logger.info(f"DEBUG INTERVIEW ACCESS: Eligible matches count (union): {eligible_matches.count()}")
+            
+            # Also check if there are any rejected matches for this HR user and JD
             rejected_matches = MatchingResult.objects.filter(
                 resume=resume,
-                user=hr_user,  # Filter by specific HR user
+                user=hr_user,
+                job_description=job_description,
                 status='rejected'
             ).exists()
             
-            # STRICT CHECK: If ANY match is rejected for this HR user, block access entirely
+            # Check for pending matches for this HR user and JD
             pending_matches = MatchingResult.objects.filter(
                 resume=resume,
-                user=hr_user,  # Filter by specific HR user
+                user=hr_user,
+                job_description=job_description,
                 status='pending'
             ).exists()
             
             # Debug: Log shortlisted and rejected counts for this HR user
-            logger.info(f"DEBUG: For HR user {hr_user_id} - Shortlisted count: {shortlisted_matches.count()}, Rejected exists: {rejected_matches}, Pending exists: {pending_matches}")
+            logger.info(f"DEBUG INTERVIEW ACCESS: Final validation - Shortlisted: {shortlisted_matches.count()}, Selection emails: {selection_email_matches.count()}, Eligible total: {eligible_matches.count()}, Rejected exists: {rejected_matches}, Pending exists: {pending_matches}")
             
-            # Enhanced validation: Only allow if there are shortlisted matches for this HR user AND no rejected/pending
-            if not shortlisted_matches.exists():
+            # HR + JD specific validation: Prioritize eligible matches
+            if eligible_matches.exists():
+                logger.info(f"DEBUG INTERVIEW ACCESS: ACCESS GRANTED - Candidate has eligible matches for HR {hr_user_id} and JD {jd_id}")
+                # Continue to interview ready section
+                pass
+            else:
+                logger.info(f"DEBUG INTERVIEW ACCESS: ACCESS DENIED - No eligible matches found for HR {hr_user_id} and JD {jd_id}")
+                # No eligible matches - check other statuses for appropriate error message
                 if rejected_matches:
-                    context['error_message'] = "Thank you for your interest in our position. After careful consideration, we have decided to move forward with other candidates whose qualifications more closely match our current requirements. We appreciate the time you invested in your application and wish you the best in your career endeavors."
+                    logger.info(f"DEBUG INTERVIEW ACCESS: Showing rejection message")
+                    context['error_message'] = "Thank you for your interest in this position. After careful consideration, we have decided to move forward with other candidates whose qualifications more closely match our current requirements. We appreciate the time you invested in your application and wish you the best in your career endeavors."
                 elif pending_matches:
+                    logger.info(f"DEBUG INTERVIEW ACCESS: Showing pending message")
                     context['error_message'] = "Your application is still under review. Please wait for further communication."
                 else:
-                    context['error_message'] = "No interview invitation found for this email address."
+                    logger.info(f"DEBUG INTERVIEW ACCESS: Showing no invitation message")
+                    context['error_message'] = "No interview invitation found for this email address for this position."
                 return render(request, 'home/candidate_interview.html', context)
             
-            # Get the most recent shortlisted match for interview for this HR user
-            latest_match = shortlisted_matches.order_by('-created_at').first()
-            logger.info(f"DEBUG: Latest shortlisted match for HR user {hr_user_id}: {latest_match.id}, Status: {latest_match.status}")
+            # Get the most recent eligible match for interview
+            latest_match = eligible_matches.order_by('-created_at').first()
+            logger.info(f"DEBUG INTERVIEW ACCESS: Latest eligible match: ID={latest_match.id}, Status={latest_match.status}")
+            
+            # Check if this candidate has already taken an interview for this matching result
+            from .models import InterviewRecording
+            existing_interview = InterviewRecording.objects.filter(
+                matching_result=latest_match
+            ).first()
+            
+            interview_already_taken = False
+            interview_status = None
+            
+            if existing_interview:
+                # Check if interview is completed or failed (both count as "taken")
+                if existing_interview.status in ['completed', 'failed']:
+                    interview_already_taken = True
+                    interview_status = existing_interview.status
+                    logger.info(f"DEBUG INTERVIEW ACCESS: Interview already taken - Status: {existing_interview.status}")
+                else:
+                    logger.info(f"DEBUG INTERVIEW ACCESS: Interview in progress - Status: {existing_interview.status}")
             
             context.update({
                 'step': 'interview_ready',
                 'candidate_data': {
                     'name': resume.candidate_name or 'Candidate',
                     'email': resume.email,
-                    'position': latest_match.job_description.title,
-                    'company': latest_match.job_description.department or 'Our Company',
+                    'position': job_description.title,
+                    'company': job_description.department or (hr_user.profile.company_name if hasattr(hr_user, 'profile') else 'Our Company'),
                     'match_id': latest_match.id,
+                    'hr_user_id': hr_user_id,
+                    'jd_id': jd_id,
+                    'interview_already_taken': interview_already_taken,
+                    'interview_status': interview_status,
+                    'existing_interview_id': existing_interview.id if existing_interview else None,
                 }
             })
             
@@ -1218,3 +1655,693 @@ def debug_check_status(request, email):
         
     except Exception as e:
         return JsonResponse({'error': str(e)})
+
+def debug_interview_flow(request, email, hr_user_id, jd_id):
+    """Comprehensive debug view to trace interview access flow for HR + JD specific validation"""
+    try:
+        from django.contrib.auth.models import User
+        
+        # Validate HR user exists
+        try:
+            hr_user = User.objects.get(id=hr_user_id)
+        except User.DoesNotExist:
+            return JsonResponse({
+                'error': f'HR User with ID {hr_user_id} does not exist',
+                'hr_user_id': hr_user_id,
+                'jd_id': jd_id
+            })
+        
+        # Validate JD exists and belongs to HR user
+        try:
+            job_description = JobDescription.objects.get(id=jd_id, user=hr_user)
+        except JobDescription.DoesNotExist:
+            return JsonResponse({
+                'error': f'Job Description with ID {jd_id} does not exist or does not belong to HR user {hr_user_id}',
+                'hr_user_id': hr_user_id,
+                'hr_username': hr_user.username,
+                'jd_id': jd_id
+            })
+        
+        # Find candidate resume for this specific HR user and JD
+        resume = Resume.objects.filter(
+            email__iexact=email,
+            user=hr_user,
+            jobdescription=job_description
+        ).first()
+        
+        if not resume:
+            # Check if candidate exists for this HR but different JD
+            other_resumes = Resume.objects.filter(email__iexact=email, user=hr_user).select_related('jobdescription')
+            
+            return JsonResponse({
+                'error': 'No application found for this specific HR + JD combination',
+                'email': email,
+                'hr_user_id': hr_user_id,
+                'hr_username': hr_user.username,
+                'jd_id': jd_id,
+                'jd_title': job_description.title,
+                'other_applications_for_this_hr': [
+                    {
+                        'resume_id': r.id,
+                        'jd_id': r.jobdescription.id,
+                        'jd_title': r.jobdescription.title,
+                        'candidate_name': r.candidate_name
+                    } for r in other_resumes
+                ]
+            })
+        
+        # Get matching result for this specific HR + JD combination
+        matching_result = MatchingResult.objects.filter(
+            resume=resume,
+            user=hr_user,
+            job_description=job_description
+        ).first()
+        
+        # Check different status combinations
+        shortlisted_matches = MatchingResult.objects.filter(
+            resume=resume,
+            user=hr_user,
+            job_description=job_description,
+            status='shortlisted'
+        )
+        
+        selection_email_matches = MatchingResult.objects.filter(
+            resume=resume,
+            user=hr_user,
+            job_description=job_description,
+            email_status='selection_sent'
+        )
+        
+        eligible_matches = shortlisted_matches.union(selection_email_matches)
+        
+        # Check interview access logic
+        access_granted = eligible_matches.exists()
+        access_reason = ""
+        
+        if access_granted:
+            if shortlisted_matches.exists() and selection_email_matches.exists():
+                access_reason = "Both shortlisted status AND selection email sent"
+            elif shortlisted_matches.exists():
+                access_reason = "Has shortlisted status"
+            elif selection_email_matches.exists():
+                access_reason = "Has selection email sent"
+        else:
+            rejected_matches = MatchingResult.objects.filter(
+                resume=resume, user=hr_user, job_description=job_description, status='rejected'
+            ).exists()
+            pending_matches = MatchingResult.objects.filter(
+                resume=resume, user=hr_user, job_description=job_description, status='pending'
+            ).exists()
+            
+            if rejected_matches:
+                access_reason = "Has rejected status - would show rejection message"
+            elif pending_matches:
+                access_reason = "Has pending status - would show under review message"
+            else:
+                access_reason = "No matches found for this HR + JD combination - would show no invitation message"
+        
+        return JsonResponse({
+            'debug_info': {
+                'email': email,
+                'hr_user_id': hr_user_id,
+                'hr_username': hr_user.username,
+                'jd_id': jd_id,
+                'jd_title': job_description.title,
+                'candidate_name': resume.candidate_name,
+                'resume_id': resume.id,
+                'interview_access_granted': access_granted,
+                'access_reason': access_reason
+            },
+            'matching_result': {
+                'exists': matching_result is not None,
+                'id': matching_result.id if matching_result else None,
+                'status': matching_result.status if matching_result else None,
+                'email_status': matching_result.email_status if matching_result else None,
+                'overall_score': float(matching_result.overall_score) if matching_result else None,
+                'created_at': matching_result.created_at.strftime('%Y-%m-%d %H:%M:%S') if matching_result else None,
+                'updated_at': matching_result.updated_at.strftime('%Y-%m-%d %H:%M:%S') if matching_result else None,
+            },
+            'validation_details': {
+                'shortlisted_matches_exist': shortlisted_matches.exists(),
+                'selection_email_matches_exist': selection_email_matches.exists(),
+                'eligible_matches_exist': eligible_matches.exists(),
+                'would_allow_interview_access': access_granted
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Debug error: {str(e)}',
+            'email': email,
+            'hr_user_id': hr_user_id,
+            'jd_id': jd_id
+        })
+    try:
+        from django.contrib.auth.models import User
+        
+        # Validate HR user exists
+        try:
+            hr_user = User.objects.get(id=hr_user_id)
+        except User.DoesNotExist:
+            return JsonResponse({
+                'error': f'HR User with ID {hr_user_id} does not exist',
+                'hr_user_id': hr_user_id
+            })
+        
+        # Find candidate resume
+        resume = Resume.objects.filter(email__iexact=email).first()
+        if not resume:
+            return JsonResponse({
+                'error': 'Email not found in system',
+                'email': email,
+                'hr_user_id': hr_user_id,
+                'hr_username': hr_user.username
+            })
+        
+        # Get ALL matching results for this resume
+        all_matches = MatchingResult.objects.filter(resume=resume).select_related('job_description', 'user')
+        
+        # Get matches specific to this HR user
+        hr_user_matches = MatchingResult.objects.filter(resume=resume, user=hr_user).select_related('job_description')
+        
+        # Get shortlisted matches for this HR user
+        shortlisted_matches = MatchingResult.objects.filter(
+            resume=resume,
+            user=hr_user,
+            status='shortlisted'
+        ).select_related('job_description')
+        
+        # Get selection email matches for this HR user
+        selection_email_matches = MatchingResult.objects.filter(
+            resume=resume,
+            user=hr_user,
+            email_status='selection_sent'
+        ).select_related('job_description')
+        
+        # Get eligible matches (union of shortlisted and selection emails)
+        eligible_matches = shortlisted_matches.union(selection_email_matches)
+        
+        # Prepare detailed match data
+        all_matches_data = []
+        for match in all_matches:
+            all_matches_data.append({
+                'id': match.id,
+                'hr_user_id': match.user.id,
+                'hr_username': match.user.username,
+                'status': match.status,
+                'email_status': match.email_status,
+                'position': match.job_description.title,
+                'company': match.job_description.department,
+                'overall_score': float(match.overall_score),
+                'created_at': match.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                'updated_at': match.updated_at.strftime('%Y-%m-%d %H:%M:%S'),
+                'is_for_current_hr': match.user.id == hr_user_id
+            })
+        
+        hr_user_matches_data = []
+        for match in hr_user_matches:
+            hr_user_matches_data.append({
+                'id': match.id,
+                'status': match.status,
+                'email_status': match.email_status,
+                'position': match.job_description.title,
+                'company': match.job_description.department,
+                'overall_score': float(match.overall_score),
+                'created_at': match.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+                'updated_at': match.updated_at.strftime('%Y-%m-%d %H:%M:%S'),
+            })
+        
+        # Check interview access logic
+        access_granted = eligible_matches.exists()
+        access_reason = ""
+        
+        if access_granted:
+            if shortlisted_matches.exists() and selection_email_matches.exists():
+                access_reason = "Both shortlisted status AND selection email sent"
+            elif shortlisted_matches.exists():
+                access_reason = "Has shortlisted status"
+            elif selection_email_matches.exists():
+                access_reason = "Has selection email sent"
+        else:
+            rejected_matches = MatchingResult.objects.filter(resume=resume, user=hr_user, status='rejected').exists()
+            pending_matches = MatchingResult.objects.filter(resume=resume, user=hr_user, status='pending').exists()
+            
+            if rejected_matches:
+                access_reason = "Has rejected status - would show rejection message"
+            elif pending_matches:
+                access_reason = "Has pending status - would show under review message"
+            else:
+                access_reason = "No matches found for this HR user - would show no invitation message"
+        
+        return JsonResponse({
+            'debug_info': {
+                'email': email,
+                'hr_user_id': hr_user_id,
+                'hr_username': hr_user.username,
+                'candidate_name': resume.candidate_name,
+                'resume_id': resume.id,
+                'interview_access_granted': access_granted,
+                'access_reason': access_reason
+            },
+            'counts': {
+                'total_matches_all_users': all_matches.count(),
+                'matches_for_this_hr_user': hr_user_matches.count(),
+                'shortlisted_for_this_hr': shortlisted_matches.count(),
+                'selection_emails_for_this_hr': selection_email_matches.count(),
+                'eligible_matches_for_this_hr': eligible_matches.count()
+            },
+            'all_matches_across_all_hr_users': all_matches_data,
+            'matches_for_current_hr_user_only': hr_user_matches_data,
+            'validation_details': {
+                'shortlisted_matches_exist': shortlisted_matches.exists(),
+                'selection_email_matches_exist': selection_email_matches.exists(),
+                'eligible_matches_exist': eligible_matches.exists(),
+                'would_allow_interview_access': access_granted
+            }
+        })
+        
+    except Exception as e:
+        return JsonResponse({
+            'error': f'Debug error: {str(e)}',
+            'email': email,
+            'hr_user_id': hr_user_id
+        })
+
+def voice_interview(request, matching_result_id):
+    """
+    Voice interview page for candidates using ElevenLabs Conversational AI.
+    """
+    try:
+        # Get the matching result
+        matching_result = MatchingResult.objects.select_related(
+            'resume', 'job_description', 'user'
+        ).get(id=matching_result_id)
+        
+        # Verify the candidate is eligible for interview (shortlisted or selection email sent)
+        if matching_result.status not in ['shortlisted'] and matching_result.email_status != 'selection_sent':
+            context = {
+                'error': 'You are not authorized to access this interview.',
+                'matching_result_id': matching_result_id
+            }
+            return render(request, 'home/voice_interview.html', context)
+        
+        # Check if interview has already been taken
+        from .models import InterviewRecording
+        existing_interview = InterviewRecording.objects.filter(
+            matching_result=matching_result
+        ).first()
+        
+        if existing_interview and existing_interview.status in ['completed', 'failed']:
+            context = {
+                'error': f'Interview has already been completed. Status: {existing_interview.status}',
+                'matching_result_id': matching_result_id,
+                'interview_already_taken': True,
+                'interview_status': existing_interview.status
+            }
+            return render(request, 'home/voice_interview.html', context)
+        
+        # Import ElevenLabs service
+        from home.services_elevenlabs import ElevenLabsAPIService
+        
+        # Initialize ElevenLabs service
+        interview_service = ElevenLabsAPIService()
+        
+        # Start interview session
+        result = interview_service.start_interview(matching_result_id)
+        
+        if result["status"] == "error":
+            # Handle error cases
+            if result.get("can_retry"):
+                messages.warning(request, result["message"])
+                logger.warning(f"Interview retry needed for matching result {matching_result_id}: {result['message']}")
+            else:
+                messages.error(request, result["message"])
+                logger.error(f"Interview failed for matching result {matching_result_id}: {result['message']}")
+                return redirect('dashboard')
+            
+            # Show error context but allow retry
+            context = {
+                'error': result["message"],
+                'matching_result_id': matching_result_id,
+                'can_retry': result.get("can_retry", False)
+            }
+            return render(request, 'home/voice_interview.html', context)
+        
+        # Success - prepare context for interview
+        context = {
+            'matching_result_id': matching_result_id,
+            'session_id': result["session_id"],
+            'candidate_name': result["candidate_name"],
+            'position': result["position"],
+            'company': result["company"],
+            'agent_id': result["agent_id"],
+            'elevenlabs_session_id': result["elevenlabs_session_id"],
+            'total_questions': result.get("total_questions", 0),
+            'interview_questions': result.get("interview_questions", ""),  # Add interview questions
+            'has_questions': True,
+            'interview_ready': True
+        }
+        
+        # Debug log to help identify missing data
+        logger.info(f"✅ Voice interview context prepared:")
+        logger.info(f"   - Candidate Name: {context['candidate_name']}")
+        logger.info(f"   - Position: {context['position']}")
+        logger.info(f"   - Company: {context['company']}")
+        logger.info(f"   - Agent ID: {context['agent_id']}")
+        logger.info(f"   - Session ID: {context['session_id']}")
+        
+        return render(request, 'home/voice_interview.html', context)
+        
+    except MatchingResult.DoesNotExist:
+        logger.error(f"MatchingResult {matching_result_id} not found")
+        context = {
+            'error': 'Interview not found. Please check your interview link.',
+            'matching_result_id': matching_result_id
+        }
+        return render(request, 'home/voice_interview.html', context)
+        
+    except Exception as e:
+        logger.error(f"Voice interview error for matching result {matching_result_id}: {str(e)}")
+        messages.error(request, "An error occurred setting up your interview. Please try again.")
+        return redirect('dashboard')
+
+
+@require_http_methods(["POST"])
+@csrf_exempt
+def interview_completion(request, matching_result_id):
+    """
+    Handle interview completion from ElevenLabs.
+    Updates interview session status and fetches interview data from ElevenLabs APIs.
+    """
+    try:
+        # Import our new ElevenLabs service
+        from .services_elevenlabs import ElevenLabsAPIService, fetch_interview_data
+        import json
+        
+        # Get the matching result
+        matching_result = get_object_or_404(MatchingResult, id=matching_result_id)
+        
+        # Parse request data
+        try:
+            data = json.loads(request.body) if request.body else {}
+        except json.JSONDecodeError:
+            data = {}
+        
+        # Get completion details
+        conversation_id = data.get('conversation_id')
+        completion_reason = data.get('completion_reason', 'completed')
+        session_id = data.get('session_id')
+        
+        logger.info(f"🏁 Interview completion for candidate {matching_result.resume.candidate_name}")
+        logger.info(f"   Conversation ID: {conversation_id}")
+        logger.info(f"   Completion Reason: {completion_reason}")
+        
+        # Always mark the interview as completed in MatchingResult
+        matching_result.interview = True
+        matching_result.save()
+        logger.info(f"✅ Marked matching result {matching_result_id} as interviewed")
+        
+        # If we have a conversation ID, fetch the interview data from ElevenLabs
+        if conversation_id:
+            try:
+                logger.info(f"📥 Fetching interview data from ElevenLabs for conversation: {conversation_id}")
+                
+                # Use our new service to fetch and store interview data
+                interview_recording = fetch_interview_data(
+                    conversation_id=conversation_id,
+                    matching_result_id=matching_result_id
+                )
+                
+                logger.info(f"✅ Successfully fetched and stored interview data")
+                logger.info(f"   Recording ID: {interview_recording.id}")
+                logger.info(f"   Messages: {interview_recording.messages.count()}")
+                logger.info(f"   Has Audio: {bool(interview_recording.audio_file)}")
+                logger.info(f"   Has Transcript: {bool(interview_recording.transcript_file)}")
+                
+                return JsonResponse({
+                    'status': 'success',
+                    'message': 'Interview completed and data saved successfully',
+                    'conversation_id': conversation_id,
+                    'completion_reason': completion_reason,
+                    'recording_id': interview_recording.id,
+                    'has_audio': bool(interview_recording.audio_file),
+                    'has_transcript': bool(interview_recording.transcript_file),
+                    'message_count': interview_recording.messages.count()
+                })
+                
+            except Exception as e:
+                logger.error(f"❌ Failed to fetch interview data from ElevenLabs: {str(e)}")
+                
+                # Auto-retry mechanism: Try to fix the issue immediately
+                try:
+                    logger.info(f"🔄 Attempting automatic retry for conversation: {conversation_id}")
+                    from .services_elevenlabs import fix_failed_recordings
+                    fixed_count = fix_failed_recordings()
+                    
+                    if fixed_count > 0:
+                        logger.info(f"✅ Auto-retry successful: Fixed {fixed_count} recordings")
+                        # Try to get the recording again
+                        from .models import InterviewRecording
+                        interview_recording = InterviewRecording.objects.filter(
+                            conversation_id=conversation_id
+                        ).first()
+                        
+                        if interview_recording and interview_recording.status == 'completed':
+                            return JsonResponse({
+                                'status': 'success',
+                                'message': 'Interview completed and data recovered through auto-retry',
+                                'conversation_id': conversation_id,
+                                'completion_reason': completion_reason,
+                                'recording_id': interview_recording.id,
+                                'has_audio': bool(interview_recording.audio_file),
+                                'has_transcript': bool(interview_recording.transcript_file),
+                                'message_count': interview_recording.messages.count(),
+                                'auto_retry_success': True
+                            })
+                    
+                except Exception as retry_error:
+                    logger.error(f"❌ Auto-retry also failed: {str(retry_error)}")
+                
+                # Create a minimal interview record even if API fails
+                try:
+                    from .models import InterviewRecording
+                    interview_recording = InterviewRecording.objects.create(
+                        matching_result=matching_result,
+                        conversation_id=conversation_id,
+                        status='failed',  # Mark as failed since we couldn't fetch data
+                        conversation_data={
+                            'completion_reason': completion_reason,
+                            'api_error': str(e),
+                            'created_via': 'completion_endpoint_fallback'
+                        }
+                    )
+                    logger.info(f"✅ Created fallback interview record with ID: {interview_recording.id}")
+                    
+                    return JsonResponse({
+                        'status': 'success',
+                        'message': 'Interview completed and basic record created. Audio/transcript will be retried later.',
+                        'conversation_id': conversation_id,
+                        'completion_reason': completion_reason,
+                        'recording_id': interview_recording.id,
+                        'data_fetch_error': str(e)
+                    })
+                except Exception as fallback_error:
+                    logger.error(f"❌ Failed to create fallback interview record: {str(fallback_error)}")
+                    return JsonResponse({
+                        'status': 'success',
+                        'message': 'Interview completed but failed to create record',
+                        'conversation_id': conversation_id,
+                        'completion_reason': completion_reason,
+                        'data_fetch_error': str(e),
+                        'fallback_error': str(fallback_error)
+                    })
+        else:
+            logger.warning("⚠️ No conversation ID provided - creating basic interview record")
+            
+            # Create a basic interview record without ElevenLabs data
+            try:
+                from .models import InterviewRecording
+                interview_recording = InterviewRecording.objects.create(
+                    matching_result=matching_result,
+                    conversation_id=f"manual_{matching_result_id}_{int(timezone.now().timestamp())}",
+                    status='failed',  # Mark as failed since no conversation data
+                    conversation_data={
+                        'completion_reason': completion_reason,
+                        'created_via': 'completion_endpoint_no_conv_id'
+                    }
+                )
+                logger.info(f"✅ Created basic interview record with ID: {interview_recording.id}")
+                
+                return JsonResponse({
+                    'status': 'success', 
+                    'message': 'Interview completed - basic record created without conversation ID',
+                    'completion_reason': completion_reason,
+                    'recording_id': interview_recording.id
+                })
+            except Exception as e:
+                logger.error(f"❌ Failed to create basic interview record: {str(e)}")
+                return JsonResponse({
+                    'status': 'success', 
+                    'message': 'Interview marked as completed',
+                    'completion_reason': completion_reason,
+                    'record_creation_error': str(e)
+                })
+            
+    except MatchingResult.DoesNotExist:
+        logger.error(f"MatchingResult {matching_result_id} not found for completion")
+        return JsonResponse({
+            'status': 'error',
+            'message': 'Interview not found'
+        }, status=404)
+        
+    except Exception as e:
+        logger.error(f"Interview completion error: {str(e)}")
+        return JsonResponse({
+            'status': 'error',
+            'message': 'An error occurred completing the interview'
+        }, status=500)
+
+
+@require_http_methods(["POST"])
+@csrf_exempt
+def complete_interview_api(request):
+    """
+    API endpoint to complete an interview session.
+    Used by frontend to mark interview as completed with reason.
+    """
+    try:
+        from home.services_elevenlabs import ElevenLabsAPIService
+        import json
+        
+        # Parse request data
+        try:
+            data = json.loads(request.body) if request.body else {}
+        except json.JSONDecodeError:
+            return JsonResponse({
+                'status': 'error',
+                'message': 'Invalid JSON data'
+            }, status=400)
+        
+        # Get required parameters
+        session_id = data.get('session_id')
+        completion_reason = data.get('completion_reason', 'completed')
+        
+        if not session_id:
+            return JsonResponse({
+                'status': 'error',
+                'message': 'Session ID is required'
+            }, status=400)
+        
+        # Initialize service
+        interview_service = ElevenLabsAPIService()
+        
+        # Complete the interview
+        result = interview_service.complete_interview(session_id, completion_reason)
+        
+        if result["status"] == "success":
+            logger.info(f"✅ Interview session {session_id} completed via API - Reason: {completion_reason}")
+            
+            return JsonResponse({
+                'status': 'success',
+                'message': 'Interview completed successfully',
+                'session_id': session_id,
+                'completion_reason': completion_reason
+            })
+        else:
+            logger.error(f"Interview completion API failed: {result['message']}")
+            return JsonResponse({
+                'status': 'error',
+                'message': result["message"]
+            }, status=400)
+            
+    except Exception as e:
+        logger.error(f"Interview completion API error: {str(e)}")
+        return JsonResponse({
+            'status': 'error',
+            'message': 'An error occurred completing the interview'
+        }, status=500)
+
+
+@login_required
+def interview_session_detail(request, session_id):
+    """Display detailed view of a specific interview session"""
+    try:
+        session = InterviewSession.objects.select_related(
+            'matching_result__resume',
+            'matching_result__job_description'
+        ).get(
+            id=session_id,
+            matching_result__user=request.user
+        )
+        
+        # Process conversation transcript for better display
+        processed_transcript = []
+        if session.conversation_transcript:
+            for item in session.conversation_transcript:
+                processed_transcript.append({
+                    'role': item.get('role', 'unknown'),
+                    'content': item.get('content', ''),
+                    'timestamp': item.get('timestamp', ''),
+                    'is_candidate': item.get('role') == 'user',
+                    'is_interviewer': item.get('role') == 'assistant',
+                })
+        
+        context = {
+            'session': session,
+            'transcript': processed_transcript,
+            'matching_result': session.matching_result,
+            'candidate': session.matching_result.resume,
+            'job': session.matching_result.job_description,
+        }
+        
+        return render(request, 'home/interview_session_detail.html', context)
+        
+    except InterviewSession.DoesNotExist:
+        messages.error(request, 'Interview session not found.')
+        return redirect('interviews')
+
+
+@login_required
+def interview_recording_detail(request, recording_id):
+    """Display detailed view of a single interview recording with audio player"""
+    user = request.user
+    
+    try:
+        recording = InterviewRecording.objects.select_related(
+            'matching_result__resume',
+            'matching_result__job_description'
+        ).prefetch_related('messages').get(
+            id=recording_id,
+            matching_result__user=user
+        )
+        
+        # Get messages ordered by sequence
+        messages = recording.messages.all().order_by('sequence_number', 'timestamp')
+        
+        # Separate candidate and interviewer messages
+        candidate_messages = messages.filter(speaker='user')
+        interviewer_messages = messages.filter(speaker='assistant')
+        
+        # Calculate interview statistics
+        stats = {
+            'total_messages': messages.count(),
+            'candidate_responses': candidate_messages.count(),
+            'interviewer_questions': interviewer_messages.count(),
+            'duration_formatted': f"{recording.duration_seconds // 60}m {recording.duration_seconds % 60}s" if recording.duration_seconds else "Unknown",
+            'has_audio': bool(recording.audio_file),
+            'has_transcript': bool(recording.transcript_file),
+        }
+        
+        context = {
+            'recording': recording,
+            'messages': messages,
+            'candidate_messages': candidate_messages,
+            'interviewer_messages': interviewer_messages,
+            'stats': stats,
+        }
+        
+        return render(request, 'home/interview_recording_detail.html', context)
+        
+    except InterviewRecording.DoesNotExist:
+        messages.error(request, 'Interview recording not found.')
+        return redirect('interview_recordings')

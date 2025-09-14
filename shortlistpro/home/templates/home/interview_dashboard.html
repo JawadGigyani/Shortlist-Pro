@@ -1,0 +1,364 @@
+{% extends 'home/dashboard_base.html' %}
+{% load static %}
+
+{% block title %}Voice Interviews - ShortlistPro{% endblock %}
+
+{% block dashboard_title %}
+Voice Interviews
+{% endblock %}
+
+{% block dashboard_content %}
+
+<!-- Page Header with Gradient -->
+<div class="bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 rounded-2xl p-8 mb-8 text-white relative overflow-hidden">
+  <div class="absolute inset-0 bg-gradient-to-r from-blue-600/90 via-purple-600/90 to-indigo-600/90"></div>
+  <div class="relative z-10">
+    <div class="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+      <div>
+        <h1 class="text-3xl font-bold mb-2">Voice Interviews</h1>
+        <p class="text-blue-100">Manage and review AI-powered voice interview recordings</p>
+      </div>
+      <div class="flex items-center gap-3">
+        <button onclick="location.reload()" class="bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300 flex items-center gap-2">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+          </svg>
+          Refresh
+        </button>
+      </div>
+    </div>
+  </div>
+  <div class="absolute -right-8 -top-8 w-32 h-32 bg-white/10 rounded-full"></div>
+  <div class="absolute -left-4 -bottom-4 w-24 h-24 bg-white/5 rounded-full"></div>
+</div>
+
+<!-- Summary Stats -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+  <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+    <div class="flex items-center justify-between">
+      <div>
+        <p class="text-sm font-medium text-gray-600">Total Interviews</p>
+        <p class="text-2xl font-bold text-gray-900">{{ stats.total_interviews }}</p>
+      </div>
+      <div class="bg-blue-100 p-3 rounded-lg">
+        <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
+        </svg>
+      </div>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+    <div class="flex items-center justify-between">
+      <div>
+        <p class="text-sm font-medium text-gray-600">Complete</p>
+        <p class="text-2xl font-bold text-green-600">{{ stats.completed }}</p>
+      </div>
+      <div class="bg-green-100 p-3 rounded-lg">
+        <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+        </svg>
+      </div>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+    <div class="flex items-center justify-between">
+      <div>
+        <p class="text-sm font-medium text-gray-600">Pending</p>
+        <p class="text-2xl font-bold text-yellow-600">{{ stats.pending }}</p>
+      </div>
+      <div class="bg-yellow-100 p-3 rounded-lg">
+        <svg class="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+        </svg>
+      </div>
+    </div>
+  </div>
+
+  <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+    <div class="flex items-center justify-between">
+      <div>
+        <p class="text-sm font-medium text-gray-600">Failed</p>
+        <p class="text-2xl font-bold text-red-600">{{ stats.failed }}</p>
+      </div>
+      <div class="bg-red-100 p-3 rounded-lg">
+        <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+        </svg>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Search and Filters -->
+<div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
+  <h3 class="text-lg font-semibold text-gray-900 mb-4">Search & Filter</h3>
+  <form method="GET" class="flex flex-col md:flex-row gap-4">
+    <div class="flex-1">
+      <label class="block text-sm font-medium text-gray-700 mb-2">Search Candidate</label>
+      <input type="text" name="search" value="{{ search_query }}" 
+             class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+             placeholder="Enter candidate name...">
+    </div>
+    <div class="md:w-48">
+      <label class="block text-sm font-medium text-gray-700 mb-2">Status</label>
+      <select name="status" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+        <option value="">All Status</option>
+        <option value="complete" {% if current_status == 'complete' %}selected{% endif %}>Complete</option>
+        <option value="pending" {% if current_status == 'pending' %}selected{% endif %}>Pending</option>
+        <option value="failed" {% if current_status == 'failed' %}selected{% endif %}>Failed</option>
+      </select>
+    </div>
+    <div class="flex items-end gap-2">
+      <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition-colors duration-200 flex items-center gap-2">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+        </svg>
+        Search
+      </button>
+      {% if search_query or current_status %}
+      <a href="{% url 'interviews' %}" class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-6 py-2 rounded-lg font-medium transition-colors duration-200 flex items-center gap-2">
+        Clear
+      </a>
+      {% endif %}
+    </div>
+  </form>
+</div>
+
+<!-- Interviews List -->
+<div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+  <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+    <h3 class="text-lg font-semibold text-gray-900">Voice Interview Records ({{ all_interviews|length }})</h3>
+    <div class="flex items-center gap-2">
+      <button onclick="toggleSelectAll()" id="selectAllBtn" class="text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded-lg transition-colors">
+        Select All
+      </button>
+      <button onclick="deleteSelected()" id="deleteSelectedBtn" class="text-sm bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-lg transition-colors disabled:bg-gray-300" disabled>
+        Delete Selected
+      </button>
+    </div>
+  </div>
+  
+  {% if all_interviews %}
+    <form id="deleteForm" method="POST" action="{% url 'delete_interviews' %}">
+      {% csrf_token %}
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+          <thead class="bg-gray-50">
+            <tr>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Select
+              </th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Candidate</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Position</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Files</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+            </tr>
+          </thead>
+          <tbody class="bg-white divide-y divide-gray-200">
+            {% for interview in all_interviews %}
+            <tr class="hover:bg-gray-50">
+              <td class="px-6 py-4 whitespace-nowrap">
+                <input type="checkbox" name="interview_ids" value="{{ interview.id }}" class="interview-checkbox rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap">
+                <div class="flex items-center">
+                  <div class="flex-shrink-0 h-10 w-10">
+                    <div class="h-10 w-10 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center">
+                      <span class="text-sm font-medium text-white">
+                        {{ interview.candidate_name|first|upper|default:"?" }}
+                      </span>
+                    </div>
+                  </div>
+                  <div class="ml-4">
+                    <div class="text-sm font-medium text-gray-900">{{ interview.candidate_name }}</div>
+                    <div class="text-sm text-gray-500">{{ interview.candidate_email }}</div>
+                  </div>
+                </div>
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap">
+                <div class="text-sm font-medium text-gray-900">{{ interview.job_title }}</div>
+                <div class="text-sm text-gray-500">{{ interview.job_department }}</div>
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap">
+                {% if interview.status == 'complete' %}
+                <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
+                  Complete
+                </span>
+                {% elif interview.status == 'pending' %}
+                <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                  Pending
+                </span>
+                {% elif interview.status == 'failed' %}
+                <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
+                  Failed
+                </span>
+                {% endif %}
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                <div class="flex items-center gap-2">
+                  {% if interview.has_audio %}
+                  <span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800">
+                    <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M18 3a1 1 0 00-1.196-.98l-10 2A1 1 0 006 5v9.114A4.369 4.369 0 005 14c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V7.82l8-1.6v5.894A4.37 4.37 0 0015 12c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V3z"/>
+                    </svg>
+                    Audio
+                  </span>
+                  {% endif %}
+                  {% if interview.has_transcript %}
+                  <span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-800">
+                    <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M4 4a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2H4zm0 2h12v8H4V6z"/>
+                    </svg>
+                    Transcript
+                  </span>
+                  {% endif %}
+                </div>
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                {{ interview.created_at|date:"M j, Y g:i A" }}
+              </td>
+              <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                <a href="{% url 'interview_recording_detail' interview.id %}" 
+                   class="text-blue-600 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 px-3 py-1 rounded-lg transition-colors">
+                  View
+                </a>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </form>
+  {% else %}
+    <div class="p-12 text-center">
+      <div class="bg-gray-100 p-4 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
+        <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
+        </svg>
+      </div>
+      <h3 class="text-xl font-semibold text-gray-900 mb-2">No Voice Interviews Found</h3>
+      <p class="text-gray-600 mb-4">
+        {% if search_query or current_status %}
+          No interviews match your current search criteria. Try adjusting your filters.
+        {% else %}
+          No voice interviews have been conducted yet. They will appear here once candidates complete their interviews.
+        {% endif %}
+      </p>
+      {% if search_query or current_status %}
+      <a href="{% url 'interviews' %}" class="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+        </svg>
+        Clear Filters
+      </a>
+      {% endif %}
+    </div>
+  {% endif %}
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div id="deleteModal" class="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50 hidden">
+  <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden">
+    <div class="bg-gradient-to-r from-red-500 to-red-600 p-6">
+      <div class="flex items-center">
+        <div class="flex-shrink-0">
+          <svg class="h-8 w-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
+          </svg>
+        </div>
+        <div class="ml-4">
+          <h3 class="text-lg font-semibold text-white">Confirm Deletion</h3>
+        </div>
+      </div>
+    </div>
+    <div class="p-6">
+      <p class="text-gray-700 mb-6" id="deleteModalMessage">
+        Are you sure you want to delete the selected interview(s)? This action cannot be undone and will permanently remove the records and associated audio/transcript files.
+      </p>
+      <div class="flex justify-end gap-3">
+        <button onclick="closeDeleteModal()" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg font-medium transition-colors duration-200">
+          Cancel
+        </button>
+        <button onclick="confirmDelete()" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors duration-200">
+          Delete
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Select all functionality
+const selectAllBtn = document.getElementById('selectAllBtn');
+const deleteSelectedBtn = document.getElementById('deleteSelectedBtn');
+const interviewCheckboxes = document.querySelectorAll('.interview-checkbox');
+const deleteModal = document.getElementById('deleteModal');
+const deleteModalMessage = document.getElementById('deleteModalMessage');
+
+function toggleSelectAll() {
+  const allChecked = Array.from(interviewCheckboxes).every(cb => cb.checked);
+  const newState = !allChecked;
+  interviewCheckboxes.forEach(checkbox => {
+    checkbox.checked = newState;
+  });
+  updateSelectAllButton();
+  updateDeleteButton();
+}
+
+function updateSelectAllButton() {
+  const allChecked = Array.from(interviewCheckboxes).every(cb => cb.checked);
+  
+  if (allChecked) {
+    selectAllBtn.textContent = 'Deselect All';
+  } else {
+    selectAllBtn.textContent = 'Select All';
+  }
+}
+
+function updateDeleteButton() {
+  const checkedCount = Array.from(interviewCheckboxes).filter(cb => cb.checked).length;
+  deleteSelectedBtn.disabled = checkedCount === 0;
+  deleteSelectedBtn.textContent = checkedCount > 0 ? `Delete Selected (${checkedCount})` : 'Delete Selected';
+}
+
+// Update on individual checkbox changes
+interviewCheckboxes.forEach(checkbox => {
+  checkbox.addEventListener('change', function() {
+    updateSelectAllButton();
+    updateDeleteButton();
+  });
+});
+
+// Delete selected interviews
+function deleteSelected() {
+  const checkedBoxes = Array.from(interviewCheckboxes).filter(cb => cb.checked);
+  if (checkedBoxes.length === 0) {
+    alert('Please select interviews to delete.');
+    return;
+  }
+  
+  deleteModalMessage.textContent = `Are you sure you want to delete ${checkedBoxes.length} selected interview(s)? This action cannot be undone and will permanently remove the records and associated audio/transcript files.`;
+  deleteModal.classList.remove('hidden');
+}
+
+function closeDeleteModal() {
+  deleteModal.classList.add('hidden');
+}
+
+function confirmDelete() {
+  document.getElementById('deleteForm').submit();
+}
+
+// Close modal when clicking outside
+deleteModal.addEventListener('click', function(e) {
+  if (e.target === deleteModal) {
+    closeDeleteModal();
+  }
+});
+</script>
+
+{% endblock %}

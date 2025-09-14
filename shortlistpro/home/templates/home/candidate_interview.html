@@ -28,7 +28,8 @@
                 this.showAlert = false;
             }, 5000);
         }
-    }">
+    }" 
+    @show-alert.window="showAlert($event.detail.message, $event.detail.type)">
         
         <!-- Alert Component -->
         <div x-show="showAlert" 
@@ -187,6 +188,7 @@
                         </div>
 
                         <!-- Interview Instructions -->
+                        {% if not candidate_data.interview_already_taken %}
                         <div class="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-6">
                             <div class="flex items-start">
                                 <svg class="w-5 h-5 text-yellow-600 mt-0.5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -212,6 +214,52 @@
                             </svg>
                             Start AI Interview
                         </button>
+                        {% else %}
+                        <!-- Interview Already Taken Message -->
+                        <div class="bg-red-50 border border-red-200 rounded-lg p-6 mb-6">
+                            <div class="flex items-start">
+                                <svg class="w-6 h-6 text-red-600 mt-0.5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                </svg>
+                                <div class="flex-1">
+                                    <h4 class="text-lg font-semibold text-red-800 mb-2">Interview Already Completed</h4>
+                                    <p class="text-red-700 mb-3">
+                                        You have already taken the interview for this position. Each candidate can only take the interview once per job application.
+                                    </p>
+                                    <div class="text-sm text-red-600">
+                                        <strong>Interview Status:</strong> 
+                                        {% if candidate_data.interview_status == 'completed' %}
+                                            <span class="inline-flex px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800 ml-1">
+                                                Completed Successfully
+                                            </span>
+                                        {% elif candidate_data.interview_status == 'failed' %}
+                                            <span class="inline-flex px-2 py-1 rounded-full text-xs font-semibold bg-red-100 text-red-800 ml-1">
+                                                Interview Failed
+                                            </span>
+                                        {% else %}
+                                            <span class="inline-flex px-2 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-800 ml-1">
+                                                {{ candidate_data.interview_status|title }}
+                                            </span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Contact Support Button -->
+                        <div class="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                            <p class="text-sm text-gray-600 mb-3">
+                                If you believe this is an error or need to discuss your application, please contact the HR team.
+                            </p>
+                            <button onclick="contactSupport()" 
+                                    class="w-full bg-gray-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 transition-all">
+                                <svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+                                </svg>
+                                Contact Support
+                            </button>
+                        </div>
+                        {% endif %}
                     </div>
                     {% endif %}
 
@@ -232,18 +280,63 @@
 
     <script>
         function startInterview() {
-            // This will be implemented later for the actual AI interview
-            alert('AI Interview functionality will be implemented in the next phase. For now, this validates the email and shows interview readiness.');
+            {% if step == 'interview_ready' and candidate_data %}
+            // Redirect to voice interview page with matching result ID
+            const matchingResultId = {{ candidate_data.match_id }};
+            const voiceInterviewUrl = `/voice-interview/${matchingResultId}/`;
+            
+            console.log('Starting interview with matching result ID:', matchingResultId);
+            console.log('Voice interview URL:', voiceInterviewUrl);
+            
+            // Show loading message using Alpine.js properly
+            showAlertMessage('Connecting to AI Interview System...', 'info');
+            
+            // Redirect to voice interview page in the same window
+            window.location.href = voiceInterviewUrl;
+            
+            {% else %}
+            alert('Interview data not available. Please refresh the page and try again.');
+            console.error('Interview step or candidate data not available');
+            {% endif %}
+        }
+
+        // Helper function to show alert messages
+        function showAlertMessage(message, type = 'info') {
+            // Dispatch custom event that Alpine.js can listen to
+            window.dispatchEvent(new CustomEvent('show-alert', {
+                detail: { message: message, type: type }
+            }));
+        }
+
+        // Contact support function
+        function contactSupport() {
+            const subject = encodeURIComponent('Interview Support Request - {{ candidate_data.name|default:"Candidate" }}');
+            const body = encodeURIComponent(`Dear HR Team,
+
+I am writing regarding my interview for the position: {{ candidate_data.position|default:"Position" }}
+
+Issue: I need assistance with my interview status or have questions about my application.
+
+Candidate Details:
+- Name: {{ candidate_data.name|default:"Candidate" }}
+- Email: {{ candidate_data.email|default:"" }}
+- Position: {{ candidate_data.position|default:"Position" }}
+
+Please contact me at your earliest convenience.
+
+Thank you,
+{{ candidate_data.name|default:"Candidate" }}`);
+
+            window.open(`mailto:support@shortlistpro.com?subject=${subject}&body=${body}`, '_blank');
         }
 
         // Show success message when email is validated
         {% if step == 'interview_ready' %}
         document.addEventListener('DOMContentLoaded', function() {
-            // Auto-show success alert for email validation
-            const alertComponent = document.querySelector('[x-data]').__x.$data;
-            if (alertComponent) {
-                alertComponent.showAlert('Email verified successfully! You can now start your interview.', 'success');
-            }
+            // Show success alert for email validation
+            setTimeout(() => {
+                showAlertMessage('Email verified successfully! You can now start your interview.', 'success');
+            }, 500);
         });
         {% endif %}
     </script>

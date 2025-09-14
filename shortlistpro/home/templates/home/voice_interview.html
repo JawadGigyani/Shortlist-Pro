@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>AI Voice Interview - ShortlistPro</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .pulse {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        
+        .fade-in {
+            animation: fadeIn 0.5s ease-in;
+        }
+        
+        @keyframes fadeIn {
+            0% { opacity: 0; transform: translateY(20px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
+        
+        .elevenlabs-container {
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            overflow: hidden;
+            background: white;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 400px;
+            height: 600px;
+            margin: 0 auto;
+            position: relative;
+            display: flex;
+            align-items: stretch;
+            justify-content: stretch;
+        }
+        
+        /* Custom styles for ElevenLabs widget */
+        elevenlabs-convai {
+            width: 100% !important;
+            height: 100% !important;
+            max-width: none !important;
+            max-height: none !important;
+            min-width: 100% !important;
+            min-height: 100% !important;
+            border-radius: 12px;
+            position: relative !important;
+            display: block !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            left: 0 !important;
+            top: 0 !important;
+            right: 0 !important;
+            bottom: 0 !important;
+            transform: none !important;
+            
+            /* CSS Custom Properties for ElevenLabs widget theming */
+            --convai-primary-color: #3b82f6;
+            --convai-secondary-color: #f8fafc;
+            --convai-background-color: #ffffff;
+            --convai-text-color: #1f2937;
+            --convai-border-radius: 12px;
+            --convai-font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            --convai-button-color: #3b82f6;
+            --convai-button-hover-color: #2563eb;
+            --convai-button-text-color: #ffffff;
+            --convai-input-background: #f9fafb;
+            --convai-input-border-color: #d1d5db;
+            --convai-shadow-color: rgba(0, 0, 0, 0.1);
+        }
+        
+        /* Force widget to be inline, not overlay */
+        elevenlabs-convai::part(container) {
+            position: static !important;
+            transform: none !important;
+            box-shadow: none !important;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen">
+    <!-- Interview Header -->
+    <div class="bg-white shadow-sm border-b">
+        <div class="max-w-4xl mx-auto px-6 py-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-4">
+                    <div class="w-10 h-10 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
+                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <h1 class="text-xl font-semibold text-gray-900">AI Voice Interview</h1>
+                        <p class="text-sm text-gray-600">ShortlistPro Interview System</p>
+                    </div>
+                </div>
+                <div id="connectionStatus" class="flex items-center space-x-2">
+                    <div id="statusDot" class="w-3 h-3 bg-green-400 rounded-full pulse"></div>
+                    <span id="statusText" class="text-sm text-gray-600">Ready</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Interview Interface -->
+    <div class="max-w-4xl mx-auto px-6 py-8">
+        {% if error %}
+            <!-- Error State -->
+            <div class="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
+                <div class="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                </div>
+                <h2 class="text-xl font-semibold text-red-900 mb-2">Interview Error</h2>
+                <p class="text-red-700 mb-4">{{ error }}</p>
+                {% if can_retry %}
+                    <button onclick="window.location.reload()" class="px-6 py-3 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">
+                        Try Again
+                    </button>
+                {% else %}
+                    <a href="{% url 'dashboard_home' %}" class="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors inline-block">
+                        Return to Dashboard
+                    </a>
+                {% endif %}
+            </div>
+        {% else %}
+            <!-- Interview Ready State -->
+            <div class="bg-white rounded-xl shadow-lg mb-8 overflow-hidden fade-in">
+                <!-- Candidate Info Header -->
+                <div class="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6">
+                    <div class="text-center">
+                        <h2 class="text-2xl font-bold mb-2">Welcome, {{ candidate_name|default:"Candidate" }}</h2>
+                        <p class="text-blue-100 mb-1">Position: {{ position|default:"Position" }}</p>
+                        <p class="text-blue-100">Company: {{ company|default:"Company" }}</p>
+                        <p class="text-blue-50 text-sm mt-2">Session: {{ session_id|default:"Loading..." }}</p>
+                    </div>
+                </div>
+
+                <!-- ElevenLabs Voice Interface -->
+                <div class="p-6">
+                    {% if interview_ready %}
+                        <!-- Interview Instructions -->
+                        <div id="interview-instructions" class="text-center mb-6">
+                            <h3 class="text-xl font-semibold text-gray-900 mb-2">AI Interview Ready</h3>
+                            <p class="text-gray-600 mb-4">The AI interviewer will ask you questions about your background and experience. Click the microphone in the widget below to begin.</p>
+                        </div>
+                        
+                        <!-- ElevenLabs Widget Container -->
+                        {% if candidate_name and position and company and agent_id %}
+                        <div class="elevenlabs-container" id="widget-container">
+                            <!-- ElevenLabs Conversational AI Widget with dynamic-variables attribute -->
+                            <elevenlabs-convai 
+                                agent-id="{{ agent_id|default:'agent_9301k5519z2ge6zv20mpc9843tg9' }}"
+                                dynamic-variables='{"candidate_name": "{{ candidate_name|default:"Test Candidate"|escapejs }}", "position": "{{ position|default:"Test Position"|escapejs }}", "company": "{{ company|default:"Test Company"|escapejs }}", "interview_questions": "{{ interview_questions|default:"No questions available"|escapejs }}"}'
+                                display-mode="inline"
+                                style="position: static !important; transform: none !important;">
+                            </elevenlabs-convai>
+                        </div>
+                        {% else %}
+                        <!-- Missing Data Error -->
+                        <div class="bg-red-50 border border-red-200 rounded-lg p-6">
+                            <div class="flex items-start">
+                                <svg class="w-5 h-5 text-red-500 mt-0.5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                </svg>
+                                <div>
+                                    <h4 class="text-sm font-medium text-red-800 mb-2">Missing Interview Data</h4>
+                                    <p class="text-sm text-red-700 mb-3">
+                                        Unable to load interview widget. Missing required information:
+                                    </p>
+                                    <ul class="text-sm text-red-600 list-disc list-inside space-y-1">
+                                        {% if not candidate_name %}<li>Candidate Name</li>{% endif %}
+                                        {% if not position %}<li>Position/Job Title</li>{% endif %}
+                                        {% if not company %}<li>Company Name</li>{% endif %}
+                                        {% if not agent_id %}<li>AI Agent Configuration</li>{% endif %}
+                                    </ul>
+                                    <p class="text-sm text-red-700 mt-3">
+                                        Please contact support or try refreshing the page.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+                        
+                    {% else %}
+                        <!-- Interview Not Ready -->
+                        <div class="text-center py-12">
+                            <div class="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <svg class="w-8 h-8 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                </svg>
+                            </div>
+                            <h3 class="text-xl font-semibold text-gray-900 mb-2">Interview Not Available</h3>
+                            <p class="text-gray-600">Please wait for the interview to be set up or contact support.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        {% endif %}
+
+        <!-- Interview Guidelines -->
+        <div class="bg-blue-50 border border-blue-200 rounded-xl p-6">
+            <h3 class="text-lg font-semibold text-blue-900 mb-3">Interview Guidelines</h3>
+            <ul class="space-y-2 text-blue-800">
+                <li class="flex items-start space-x-2">
+                    <svg class="w-5 h-5 mt-0.5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                    </svg>
+                    <span>Speak clearly and at a normal pace</span>
+                </li>
+                <li class="flex items-start space-x-2">
+                    <svg class="w-5 h-5 mt-0.5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                    </svg>
+                    <span>Allow the AI to finish asking questions before responding</span>
+                </li>
+                <li class="flex items-start space-x-2">
+                    <svg class="w-5 h-5 mt-0.5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                    </svg>
+                    <span>Be authentic and provide specific examples when possible</span>
+                </li>
+                <li class="flex items-start space-x-2">
+                    <svg class="w-5 h-5 mt-0.5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                    </svg>
+                    <span>Ensure you're in a quiet environment</span>
+                </li>
+                <li class="flex items-start space-x-2">
+                    <svg class="w-5 h-5 mt-0.5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                    </svg>
+                    <span>The interview typically takes 3-5 minutes</span>
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Debug Section (hidden by default) -->
+    <div id="debug-section" class="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200" style="display: none;">
+        <div class="flex items-center justify-between mb-3">
+            <h3 class="text-lg font-semibold text-gray-800">Debug Tools</h3>
+            <button onclick="toggleDebug()" class="px-3 py-1 text-sm bg-gray-200 hover:bg-gray-300 rounded">
+                Hide Debug
+            </button>
+        </div>
+        <div class="space-y-2">
+            <button onclick="testConversationIdExtraction()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+                Test Conversation ID Extraction
+            </button>
+            <button onclick="logWidgetInfo()" class="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700">
+                Log Widget Info
+            </button>
+            <button onclick="testManualCompletion()" class="px-4 py-2 bg-purple-600 text-white rounded hover:bg-purple-700">
+                Test Manual Completion
+            </button>
+        </div>
+        <div id="debug-output" class="mt-3 p-3 bg-white rounded border text-sm font-mono overflow-auto max-h-40">
+            Debug output will appear here...
+        </div>
+    </div>
+
+    <!-- Show Debug Button -->
+    <div class="mt-4 text-center">
+        <button onclick="toggleDebug()" class="text-sm text-gray-500 hover:text-gray-700 underline">
+            Show Debug Tools
+        </button>
+    </div>
+
+    <!-- ElevenLabs Conversational AI Script -->
+    <script src="https://unpkg.com/@elevenlabs/convai-widget-embed" async type="text/javascript"></script>
+    
+    <script>
+        // Interview configuration from Django context
+        const interviewConfig = {
+            agentId: '{{ agent_id|default:"agent_9301k5519z2ge6zv20mpc9843tg9" }}',
+            sessionId: {{ session_id|default:"null" }},
+            matchingResultId: {{ matching_result_id|default:"null" }},
+            elevenlabsSessionId: '{{ elevenlabs_session_id|default:"" }}',
+            candidateName: '{{ candidate_name|default:"" }}',
+            position: '{{ position|default:"" }}',
+            company: '{{ company|default:"" }}',
+            interviewQuestions: `{{ interview_questions|default:""|escapejs }}`
+        };
+        
+        let interviewActive = false;
+        
+        // Debug configuration
+        console.log('🎯 Interview Configuration:', interviewConfig);
+        console.log('🔍 Individual values:');
+        console.log('  - Agent ID:', interviewConfig.agentId);
+        console.log('  - Candidate Name:', interviewConfig.candidateName);
+        console.log('  - Position:', interviewConfig.position);
+        console.log('  - Company:', interviewConfig.company);
+        console.log('  - Session ID:', interviewConfig.sessionId);
+        console.log('  - Interview Questions:', interviewConfig.interviewQuestions ? 'Present (' + interviewConfig.interviewQuestions.split('\n').length + ' lines)' : 'Not provided');
+        
+        // Check if required variables are present
+        const requiredVars = ['candidateName', 'position', 'company'];
+        const missingVars = requiredVars.filter(varName => !interviewConfig[varName] || interviewConfig[varName].trim() === '');
+        
+        if (missingVars.length > 0) {
+            console.error('❌ Missing required variables:', missingVars);
+            alert(`Missing required information: ${missingVars.join(', ')}. Please contact support.`);
+        }
+        
+        if (!interviewConfig.interviewQuestions || interviewConfig.interviewQuestions.trim() === '') {
+            console.warn('⚠️ No interview questions provided - agent will use default questions');
+        } else {
+            console.log('✅ Interview questions loaded successfully');
+        }
+        
+        let currentConversationId = null;
+        let completionTriggered = false; // Flag to prevent multiple completions
+        
+        // Function to extract conversation ID from widget
+        function extractConversationId() {
+            const widget = document.querySelector('elevenlabs-convai');
+            if (widget) {
+                // Try multiple ways to get the conversation ID
+                const shadowRoot = widget.shadowRoot;
+                if (shadowRoot) {
+                    // Look for conversation ID in text content
+                    const textContent = shadowRoot.textContent || shadowRoot.innerText || '';
+                    console.log('🔍 Widget text content for ID extraction:', textContent.substring(0, 500));
+                    
+                    // More precise regex for ElevenLabs conversation IDs
+                    // Look for patterns that end properly (not followed by letters)
+                    const patterns = [
+                        /ID:\s*(conv_[a-z0-9]{26,32})(?![a-zA-Z])/i,  // Standard with ID: prefix, not followed by letters
+                        /(conv_[a-z0-9]{26,32})(?![a-zA-Z])/i,        // Direct match, not followed by letters
+                        /conversation[_\s]*id[:\s]*(conv_[a-z0-9]+)(?![a-zA-Z])/i, // Alternative formats
+                    ];
+                    
+                    for (const pattern of patterns) {
+                        const match = textContent.match(pattern);
+                        if (match) {
+                            const foundId = match[1];
+                            // Validate it looks like a proper ElevenLabs ID (exactly the right length)
+                            if (foundId.startsWith('conv_') && foundId.length >= 30 && foundId.length <= 35) {
+                                if (!currentConversationId) {
+                                    currentConversationId = foundId;
+                                    console.log('📝 Conversation ID extracted from text:', currentConversationId);
+                                    triggerCompletionOnIdDetected();
+                                }
+                                return currentConversationId;
+                            }
+                        }
+                    }
+                    
+                    // Look for it in any span with break-all class (as shown in your output)
+                    const allSpans = shadowRoot.querySelectorAll('span, div, p, *');
+                    for (const element of allSpans) {
+                        if (element.textContent && element.textContent.includes('conv_')) {
+                            console.log('🔍 Found element with conv_:', element.textContent);
+                            
+                            // Extract conversation ID from this element
+                            const elementText = element.textContent;
+                            const spanPatterns = [
+                                /ID:\s*(conv_[a-z0-9]{26,35})(?![a-zA-Z])/i,  // Not followed by letters
+                                /(conv_[a-z0-9]{26,35})(?![a-zA-Z])/i,        // Not followed by letters
+                            ];
+                            
+                            for (const pattern of spanPatterns) {
+                                const spanMatch = elementText.match(pattern);
+                                if (spanMatch && spanMatch[1].length >= 30 && spanMatch[1].length <= 35) {
+                                    const foundId = spanMatch[1];
+                                    if (!currentConversationId) {
+                                        currentConversationId = foundId;
+                                        console.log('📝 Conversation ID extracted from element:', currentConversationId);
+                                        triggerCompletionOnIdDetected();
+                                        return currentConversationId;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // Try to get from attributes
+                const convId = widget.getAttribute('data-conversation-id') || 
+                              widget.getAttribute('conversation-id');
+                if (convId && !currentConversationId) {
+                    currentConversationId = convId;
+                    console.log('📝 Conversation ID from attributes:', currentConversationId);
+                    triggerCompletionOnIdDetected();
+                    return currentConversationId;
+                }
+            }
+            return currentConversationId;
+        }
+        
+        // Function to trigger completion when conversation ID is detected
+        function triggerCompletionOnIdDetected() {
+            if (completionTriggered) {
+                console.log('⏩ Completion already triggered, skipping');
+                return;
+            }
+            
+            completionTriggered = true;
+            console.log('🚀 Conversation ID detected! Triggering completion...');
+            
+            // Show alert to indicate completion is starting
+            alert(`Interview completed! Conversation ID: ${currentConversationId}\nNow saving interview data...`);
+            
+            // Mark interview as no longer active
+            interviewActive = false;
+            updateStatus('Interview completed - saving data...', 'blue');
+            
+            // Trigger completion with a small delay to ensure everything is ready
+            setTimeout(() => {
+                completeInterview('auto_detected');
+            }, 1000);
+        }
+        
+        // Periodically check for conversation ID - stop once found
+        const checkConversationId = setInterval(() => {
+            if (!currentConversationId && !completionTriggered) {
+                extractConversationId();
+            } else if (currentConversationId && completionTriggered) {
+                console.log('✅ Conversation ID found and completion triggered, stopping checks');
+                clearInterval(checkConversationId);
+            }
+        }, 1000); // Check every 1 second for faster detection
+        
+        // Complete the interview session
+        async function completeInterview(reason) {
+            console.log('🏁 completeInterview called with reason:', reason);
+            console.log('🏁 interviewActive:', interviewActive);
+            console.log('🏁 currentConversationId:', currentConversationId);
+            
+            if (!interviewActive && reason === 'user_ended') {
+                // If interview hasn't started, just redirect
+                if (confirm('Are you sure you want to return to the dashboard?')) {
+                    window.location.href = '{% url "dashboard_home" %}';
+                }
+                return;
+            }
+            
+            try {
+                console.log('🏁 Completing interview with reason:', reason);
+                updateStatus('Completing interview...', 'yellow');
+                
+                // Final attempt to extract conversation ID
+                if (!currentConversationId) {
+                    console.log('🔍 Final attempt to extract conversation ID');
+                    extractConversationId();
+                }
+                
+                console.log('📝 Using conversation ID:', currentConversationId);
+                
+                const requestBody = {
+                    session_id: interviewConfig.sessionId,
+                    completion_reason: reason,
+                    conversation_id: currentConversationId
+                };
+                
+                console.log('📊 Request body:', requestBody);
+                
+                const response = await fetch(`/voice-interview/{{ matching_result_id }}/complete/`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': getCookie('csrftoken')
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+                
+                console.log('📡 Response status:', response.status);
+                console.log('📡 Response headers:', response.headers);
+                
+                if (!response.ok) {
+                    console.error('❌ HTTP Error:', response.status, response.statusText);
+                    const errorText = await response.text();
+                    console.error('❌ Error response:', errorText);
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}\n${errorText}`);
+                }
+                
+                const result = await response.json();
+                console.log('✅ Interview completion result:', result);
+                
+                if (result.status === 'success') {
+                    updateStatus('Interview completed', 'green');
+                    
+                    // Show completion message
+                    setTimeout(() => {
+                        alert('Interview completed successfully! You will be redirected to your dashboard.');
+                        window.location.href = '{% url "dashboard_home" %}';
+                    }, 1500);
+                } else {
+                    console.error('Failed to complete interview:', result.message);
+                    updateStatus('Error completing interview', 'red');
+                    alert(`Completion failed: ${result.message || 'Unknown error'}`);
+                    
+                    // Still allow redirect after error
+                    setTimeout(() => {
+                        if (confirm('There was an error completing the interview. Return to dashboard anyway?')) {
+                            window.location.href = '{% url "dashboard_home" %}';
+                        }
+                    }, 2000);
+                }
+                
+            } catch (error) {
+                console.error('❌ Error completing interview:', error);
+                updateStatus('Error completing interview', 'red');
+                alert(`Network/API Error: ${error.message}`);
+                
+                // Still allow redirect after error
+                setTimeout(() => {
+                    if (confirm('There was an error completing the interview. Return to dashboard anyway?')) {
+                        window.location.href = '{% url "dashboard_home" %}';
+                    }
+                }, 2000);
+            }
+        }
+        
+        // Update status display
+        function updateStatus(message, color) {
+            const statusDot = document.getElementById('statusDot');
+            const statusText = document.getElementById('statusText');
+            
+            if (statusDot && statusText) {
+                statusDot.className = `w-3 h-3 rounded-full ${getStatusColor(color)}`;
+                statusText.textContent = message;
+            }
+            
+            console.log(`📊 Status: ${message} (${color})`);
+        }
+        
+        function getStatusColor(color) {
+            const colors = {
+                'green': 'bg-green-400 pulse',
+                'red': 'bg-red-400',
+                'yellow': 'bg-yellow-400 pulse',
+                'gray': 'bg-gray-400'
+            };
+            return colors[color] || 'bg-gray-400';
+        }
+        
+        // Get CSRF token for API calls
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+        
+        // Listen for ElevenLabs widget events (if available)
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('🎯 Interview page loaded');
+            console.log('Agent ID:', interviewConfig.agentId);
+            
+            {% if interview_ready %}
+                updateStatus('Interview ready', 'green');
+                console.log('✅ Interview ready - ElevenLabs widget should load automatically');
+                
+                // Wait for the widget to load and verify variables
+                setTimeout(() => {
+                    const widget = document.querySelector('elevenlabs-convai');
+                    
+                    if (widget) {
+                        console.log('🔍 ElevenLabs widget found:', widget);
+                        
+                        // Force widget to display inline, not as overlay
+                        widget.style.position = 'static';
+                        widget.style.transform = 'none';
+                        widget.style.inset = 'unset';
+                        widget.style.zIndex = 'auto';
+                        
+                        // Try to access shadow DOM for deeper styling
+                        if (widget.shadowRoot) {
+                            const shadowStyle = document.createElement('style');
+                            shadowStyle.textContent = `
+                                :host {
+                                    position: static !important;
+                                    transform: none !important;
+                                    inset: unset !important;
+                                    z-index: auto !important;
+                                }
+                                .overlay {
+                                    position: static !important;
+                                    inset: unset !important;
+                                    display: block !important;
+                                    background: transparent !important;
+                                }
+                            `;
+                            widget.shadowRoot.appendChild(shadowStyle);
+                            console.log('✅ Applied inline styling to shadow DOM');
+                        }
+                        
+                        // Get the dynamic-variables attribute (correct ElevenLabs format)
+                        const dynamicVariablesAttr = widget.getAttribute('dynamic-variables');
+                        console.log('📋 Dynamic-variables attribute (raw):', dynamicVariablesAttr);
+                        
+                        try {
+                            const parsedVariables = JSON.parse(dynamicVariablesAttr);
+                            console.log('✅ Parsed dynamic variables:', parsedVariables);
+                            console.log('📊 Variable values:');
+                            console.log('  - candidate_name:', parsedVariables.candidate_name);
+                            console.log('  - position:', parsedVariables.position);
+                            console.log('  - company:', parsedVariables.company);
+                            console.log('  - interview_questions:', parsedVariables.interview_questions ? 'Present (' + parsedVariables.interview_questions.split('\n').length + ' lines)' : 'Not provided');
+                            
+                            // Verify all required variables are present and not empty
+                            const requiredVars = ['candidate_name', 'position', 'company', 'interview_questions'];
+                            const missingOrEmpty = requiredVars.filter(varName => 
+                                !parsedVariables[varName] || 
+                                parsedVariables[varName].trim() === '' || 
+                                parsedVariables[varName] === 'Test Candidate' ||
+                                parsedVariables[varName] === 'Test Position' ||
+                                parsedVariables[varName] === 'Test Company'
+                            );
+                            
+                            if (missingOrEmpty.length > 0) {
+                                console.error('❌ Missing or placeholder variables:', missingOrEmpty);
+                                console.error('This may cause the ElevenLabs agent to fail');
+                            } else {
+                                console.log('✅ All required variables are present and valid');
+                            }
+                            
+                        } catch (error) {
+                            console.error('❌ Failed to parse dynamic-variables JSON:', error);
+                            console.error('Raw dynamic-variables attribute:', dynamicVariablesAttr);
+                            
+                            // Try to fix the JSON formatting
+                            console.log('🔧 Attempting to fix dynamic-variables JSON...');
+                            const correctVariables = {
+                                candidate_name: interviewConfig.candidateName,
+                                position: interviewConfig.position,
+                                company: interviewConfig.company,
+                                interview_questions: interviewConfig.interviewQuestions
+                            };
+                            
+                            const correctJSON = JSON.stringify(correctVariables);
+                            console.log('🔧 Corrected dynamic-variables JSON:', correctJSON);
+                            
+                            // Update the widget with correct JSON
+                            widget.setAttribute('dynamic-variables', correctJSON);
+                            console.log('✅ Updated widget with corrected dynamic-variables');
+                        }
+                        
+                        // Force widget positioning continuously
+                        function enforceWidgetPositioning() {
+                            if (!widget) return;
+                            
+                            // Continuously enforce positioning to prevent sliding
+                            widget.style.cssText += `
+                                position: relative !important;
+                                transform: none !important;
+                                left: 0 !important;
+                                top: 0 !important;
+                                right: 0 !important;
+                                bottom: 0 !important;
+                                margin: 0 !important;
+                                padding: 0 !important;
+                                width: 100% !important;
+                                height: 100% !important;
+                                max-width: none !important;
+                                max-height: none !important;
+                                min-width: 100% !important;
+                                min-height: 100% !important;
+                                inset: unset !important;
+                                z-index: auto !important;
+                                display: block !important;
+                            `;
+                            
+                            // Also enforce on shadow DOM if accessible
+                            if (widget.shadowRoot) {
+                                const overlays = widget.shadowRoot.querySelectorAll('.overlay, [class*="overlay"], [style*="position: fixed"], [style*="position: absolute"]');
+                                overlays.forEach(overlay => {
+                                    overlay.style.cssText += `
+                                        position: static !important;
+                                        left: unset !important;
+                                        top: unset !important;
+                                        right: unset !important;
+                                        bottom: unset !important;
+                                        transform: none !important;
+                                        margin: 0 !important;
+                                        padding: 0 !important;
+                                        inset: unset !important;
+                                        z-index: auto !important;
+                                        width: 100% !important;
+                                        height: 100% !important;
+                                    `;
+                                });
+                            }
+                        }
+                        
+                        // Listen for widget ready event
+                        widget.addEventListener('ready', function() {
+                            console.log('🎯 Widget is ready, applying positioning...');
+                            enforceWidgetPositioning();
+                            
+                            // Start continuous enforcement
+                            setInterval(enforceWidgetPositioning, 500);
+                        });
+                        
+                        // Immediate positioning attempts
+                        enforceWidgetPositioning();
+                        setTimeout(enforceWidgetPositioning, 100);
+                        setTimeout(enforceWidgetPositioning, 500);
+                        setTimeout(enforceWidgetPositioning, 1000);
+                        setTimeout(enforceWidgetPositioning, 2000);
+                        
+                        // Start continuous monitoring
+                        const positionMonitor = setInterval(enforceWidgetPositioning, 1000);
+                        
+                        // Use MutationObserver to catch any style changes
+                        const observer = new MutationObserver((mutations) => {
+                            mutations.forEach((mutation) => {
+                                if (mutation.type === 'attributes' && mutation.attributeName === 'style') {
+                                    console.log('🔄 Widget style changed, re-enforcing position...');
+                                    setTimeout(enforceWidgetPositioning, 50);
+                                }
+                            });
+                        });
+                        
+                        observer.observe(widget, {
+                            attributes: true,
+                            attributeFilter: ['style', 'class']
+                        });
+                        
+                        // Listen for custom events if the widget emits them
+                        // Add comprehensive event listeners
+                        const eventTypes = [
+                            'conversation-started', 'conversation-ended', 'conversation-complete',
+                            'message-sent', 'message-received', 'status-changed',
+                            'ready', 'error', 'state-change', 'update'
+                        ];
+                        
+                        eventTypes.forEach(eventName => {
+                            widget.addEventListener(eventName, function(event) {
+                                console.log(`🎧 Widget event: ${eventName}`, event.detail || event);
+                                
+                                // Try to extract conversation ID from event
+                                if (event.detail) {
+                                    if (event.detail.conversationId) {
+                                        currentConversationId = event.detail.conversationId;
+                                        console.log('📝 Conversation ID from event:', currentConversationId);
+                                    }
+                                    if (event.detail.id && event.detail.id.includes('conv_')) {
+                                        currentConversationId = event.detail.id;
+                                        console.log('📝 Conversation ID from event.detail.id:', currentConversationId);
+                                    }
+                                }
+                                
+                                // Handle specific events
+                                if (eventName === 'conversation-started') {
+                                    interviewActive = true;
+                                    updateStatus('Interview in progress', 'green');
+                                    extractConversationId(); // Try to get ID
+                                }
+                                
+                                if (eventName === 'conversation-ended' || eventName === 'conversation-complete') {
+                                    interviewActive = false;
+                                    updateStatus('Interview completed', 'gray');
+                                    extractConversationId(); // Final attempt to get ID
+                                    completeInterview('completed');
+                                }
+                            });
+                        });
+                        
+                        // Legacy event listeners for backward compatibility
+                        widget.addEventListener('conversation-started', function(event) {
+                            console.log('🎤 Conversation started');
+                            if (event.detail && event.detail.conversationId) {
+                                currentConversationId = event.detail.conversationId;
+                                console.log('📝 Captured conversation ID:', currentConversationId);
+                            }
+                            interviewActive = true;
+                            updateStatus('Interview in progress', 'green');
+                        });
+                        
+                        widget.addEventListener('conversation-ended', function(event) {
+                            console.log('🔚 Conversation ended');
+                            console.log('🔚 Event details:', event.detail);
+                            
+                            if (event.detail && event.detail.conversationId) {
+                                currentConversationId = event.detail.conversationId;
+                                console.log('📝 Captured conversation ID on end:', currentConversationId);
+                            }
+                            extractConversationId(); // Try to extract from DOM
+                            interviewActive = false;
+                            updateStatus('Interview completed', 'gray');
+                            
+                            // Add alert to make completion visible
+                            console.log('🚀 About to call completeInterview function');
+                            alert('Interview ended! Attempting to save data...');
+                            
+                            completeInterview('completed');
+                        });
+                        
+                        // Listen for error events
+                        widget.addEventListener('error', function(event) {
+                            console.error('❌ Widget error:', event.detail);
+                            updateStatus('Interview error', 'red');
+                        });
+                        
+                        // Periodic checks for conversation ID
+                        const checkInterval = setInterval(() => {
+                            if (!currentConversationId) {
+                                extractConversationId();
+                            }
+                            
+                            // Check widget state
+                            try {
+                                const widgetState = widget.getAttribute('data-state') || 'unknown';
+                                console.log('🔄 Widget state check:', widgetState, 'ConversationID:', currentConversationId);
+                            } catch (error) {
+                                console.log('🔄 Widget check error:', error.message);
+                            }
+                        }, 5000); // Check every 5 seconds
+                        
+                        // Cleanup interval when page unloads
+                        window.addEventListener('beforeunload', () => {
+                            clearInterval(checkInterval);
+                        });
+                        
+                        console.log('✅ Voice interview widget initialized with periodic checks');
+                    } else {
+                        console.warn('⚠️ ElevenLabs widget not found after timeout');
+                    }
+                }, 2000); // Wait 2 seconds for widget to load
+                
+            {% else %}
+                updateStatus('Interview not available', 'red');
+                console.log('⚠️ Interview not ready');
+            {% endif %}
+            
+            // Auto-complete interview when user leaves the page
+            window.addEventListener('beforeunload', function(e) {
+                if (interviewActive) {
+                    // Note: This won't work reliably in modern browsers due to security restrictions
+                    // But we'll try anyway
+                    navigator.sendBeacon('/api/interview/complete/', JSON.stringify({
+                        session_id: interviewConfig.sessionId,
+                        completion_reason: 'page_unload'
+                    }));
+                }
+            });
+        });
+        
+        // Debug functions
+        function toggleDebug() {
+            const debugSection = document.getElementById('debug-section');
+            const isVisible = debugSection.style.display !== 'none';
+            debugSection.style.display = isVisible ? 'none' : 'block';
+        }
+        
+        function logDebug(message) {
+            const output = document.getElementById('debug-output');
+            const timestamp = new Date().toLocaleTimeString();
+            output.innerHTML += `[${timestamp}] ${message}<br>`;
+            output.scrollTop = output.scrollHeight;
+        }
+        
+        function testConversationIdExtraction() {
+            logDebug('🔍 Testing conversation ID extraction...');
+            logDebug(`Current conversation ID: ${currentConversationId || 'Not set'}`);
+            
+            const result = extractConversationId();
+            if (result) {
+                logDebug(`✅ Extracted conversation ID: ${result}`);
+            } else {
+                logDebug('❌ Could not extract conversation ID');
+            }
+            
+            // Try to find the widget
+            const widget = document.querySelector('elevenlabs-convai');
+            if (widget) {
+                logDebug('✅ Widget found');
+                logDebug(`Widget innerHTML length: ${widget.innerHTML.length}`);
+                logDebug(`Widget shadow root: ${widget.shadowRoot ? 'Present' : 'Not accessible'}`);
+            } else {
+                logDebug('❌ Widget not found');
+            }
+        }
+        
+        function logWidgetInfo() {
+            logDebug('📊 Widget information:');
+            const widget = document.querySelector('elevenlabs-convai');
+            if (widget) {
+                logDebug(`Widget tag: ${widget.tagName}`);
+                logDebug(`Widget attributes: ${Array.from(widget.attributes).map(a => `${a.name}="${a.value}"`).join(', ')}`);
+                
+                // Check for conversation ID in attributes
+                const allAttributes = Array.from(widget.attributes);
+                const conversationAttrs = allAttributes.filter(attr => 
+                    attr.name.includes('conversation') || 
+                    attr.value.includes('conv_') ||
+                    attr.name.includes('id')
+                );
+                
+                if (conversationAttrs.length > 0) {
+                    logDebug('🔍 Potential conversation ID attributes:');
+                    conversationAttrs.forEach(attr => {
+                        logDebug(`  ${attr.name}: ${attr.value}`);
+                    });
+                }
+            } else {
+                logDebug('❌ No widget found');
+            }
+        }
+        
+        function testManualCompletion() {
+            logDebug('🏁 Testing manual completion...');
+            if (!currentConversationId) {
+                logDebug('⚠️ No conversation ID - trying to extract...');
+                extractConversationId();
+            }
+            
+            if (currentConversationId) {
+                logDebug(`✅ Using conversation ID: ${currentConversationId}`);
+                completeInterview('manual_test');
+            } else {
+                logDebug('❌ Still no conversation ID found');
+                logDebug('Trying to complete anyway...');
+                completeInterview('manual_test_no_id');
+            }
+        }
+        
+    </script>
+</body>
+</html>
