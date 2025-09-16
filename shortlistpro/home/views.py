@@ -50,6 +50,7 @@ logger = logging.getLogger(__name__)
 # FastAPI service configurations
 FASTAPI_MATCHING_URL = "http://localhost:8001/match-resume"
 FASTAPI_INTERVIEW_QUESTIONS_URL = "http://localhost:8004/generate-questions"
+FASTAPI_INTERVIEW_EVALUATION_URL = "http://localhost:8002/evaluate-interview"
 FASTAPI_TIMEOUT = 60  # Increased timeout for AI processing
 
 
@@ -174,6 +175,235 @@ Description: {matching_result.job_description.description}
         }
     except Exception as e:
         logger.error(f"Unexpected error calling interview questions service: {str(e)}")
+        return {
+            "success": False,
+            "error": "Unexpected error occurred",
+            "details": str(e)
+        }
+
+
+def call_fastapi_interview_evaluation_service(interview_recording):
+    """
+    Call the FastAPI interview evaluation service to analyze interview transcripts
+    
+    Args:
+        interview_recording: InterviewRecording model instance
+        
+    Returns:
+        dict: API response with evaluation results or error info
+    """
+    try:
+        # Validate that we have the necessary data
+        if not interview_recording.matching_result:
+            logger.error(f"Interview recording {interview_recording.id} has no matching result")
+            return {
+                "success": False,
+                "error": "No matching result found for interview recording"
+            }
+        
+        # Prepare resume data as structured string
+        resume = interview_recording.matching_result.resume
+        job_desc = interview_recording.matching_result.job_description
+        
+        resume_data = f"""
+Candidate: {resume.candidate_name}
+Email: {resume.email}
+Phone: {resume.phone or 'Not provided'}
+Location: {resume.location or 'Not provided'}
+Career Level: {resume.career_level}
+Years of Experience: {resume.years_of_experience}
+
+Professional Summary:
+{resume.professional_summary or 'Not provided'}
+
+Skills: {', '.join(resume.skills or [])}
+
+Work Experience:
+{json.dumps(resume.work_experience or [], indent=2)}
+
+Education:
+{json.dumps(resume.education or [], indent=2)}
+
+Projects:
+{json.dumps(resume.projects or [], indent=2)}
+
+Certifications:
+{json.dumps(resume.certifications or [], indent=2)}
+
+Extracurricular Activities:
+{json.dumps(resume.extracurricular or [], indent=2)}
+        """.strip()
+        
+        # Prepare job description
+        job_description = f"""
+Title: {job_desc.title}
+Department: {job_desc.department}
+Description: {job_desc.description}
+        """.strip()
+        
+        # Prepare interview transcript
+        transcript_messages = []
+        if interview_recording.conversation_data:
+            # Extract messages from conversation_data
+            for message in interview_recording.conversation_data.get('messages', []):
+                speaker = message.get('role', 'unknown')
+                content = message.get('content', '')
+                if content and content.strip():
+                    transcript_messages.append(f"{speaker.title()}: {content}")
+        
+        # If no conversation_data, try messages from InterviewMessage model
+        if not transcript_messages and hasattr(interview_recording, 'messages'):
+            for message in interview_recording.messages.all().order_by('sequence_number'):
+                if message.message_content and message.message_content.strip():
+                    speaker_display = message.get_speaker_display()
+                    transcript_messages.append(f"{speaker_display}: {message.message_content}")
+        
+        # Create transcript string
+        interview_transcript = "\n\n".join(transcript_messages) if transcript_messages else "No transcript available"
+        
+        # Calculate interview duration in minutes
+        duration_minutes = None
+        if interview_recording.duration_seconds:
+            duration_minutes = max(1, interview_recording.duration_seconds // 60)  # At least 1 minute
+        
+        # Get resume matching results
+        matching_result = interview_recording.matching_result
+        
+        # Parse JSON fields safely
+        matched_skills = []
+        missing_skills = []
+        
+        try:
+            if matching_result.matched_skills:
+                if isinstance(matching_result.matched_skills, str):
+                    matched_skills = json.loads(matching_result.matched_skills)
+                else:
+                    matched_skills = matching_result.matched_skills
+        except (json.JSONDecodeError, TypeError):
+            matched_skills = []
+            
+        try:
+            if matching_result.missing_skills:
+                if isinstance(matching_result.missing_skills, str):
+                    missing_skills = json.loads(matching_result.missing_skills)
+                else:
+                    missing_skills = matching_result.missing_skills
+        except (json.JSONDecodeError, TypeError):
+            missing_skills = []
+        
+        # Prepare request payload with resume matching context
+        payload = {
+            "job_description": job_description,
+            "candidate_resume_data": resume_data,
+            "interview_transcript": interview_transcript,
+            "interview_duration_minutes": duration_minutes,
+            # Resume matching context
+            "resume_overall_score": float(matching_result.overall_score) if matching_result.overall_score else None,
+            "resume_skills_score": float(matching_result.skills_score) if matching_result.skills_score else None,
+            "resume_experience_score": float(matching_result.experience_score) if matching_result.experience_score else None,
+            "resume_education_score": float(matching_result.education_score) if matching_result.education_score else None,
+            "matched_skills": matched_skills,
+            "missing_skills": missing_skills,
+            "experience_gap": matching_result.experience_gap or ""
+        }
+        
+        logger.info(f"Calling interview evaluation service for recording {interview_recording.id}")
+        logger.info(f"Transcript length: {len(interview_transcript)} chars, Duration: {duration_minutes} min")
+        
+        response = requests.post(
+            FASTAPI_INTERVIEW_EVALUATION_URL,
+            json=payload,
+            timeout=FASTAPI_TIMEOUT
+        )
+        
+        logger.info(f"Interview evaluation service response status: {response.status_code}")
+        
+        if response.status_code == 200:
+            logger.info(f"Interview evaluation completed successfully for recording {interview_recording.id}")
+            response_data = response.json()
+            
+            # Save the evaluation results to the database
+            if response_data.get('success') and response_data.get('data'):
+                try:
+                    from .models import InterviewEvaluation
+                    
+                    evaluation_data = response_data['data']
+                    
+                    # Create or update the evaluation
+                    evaluation, created = InterviewEvaluation.objects.update_or_create(
+                        interview_recording=interview_recording,
+                        defaults={
+                            # Simplified criteria (new fields)
+                            'communication_clarity': evaluation_data.get('communication_clarity', 0),
+                            'relevant_experience': evaluation_data.get('relevant_experience', 0),
+                            'role_interest_fit': evaluation_data.get('role_interest_fit', 0),
+                            'overall_score': evaluation_data.get('overall_score', 0),
+                            'recommendation': evaluation_data.get('recommendation', 'INSUFFICIENT'),
+                            
+                            # Legacy fields (for backward compatibility)
+                            'communication_score': evaluation_data.get('communication_clarity', 0) * 10,  # Convert to 0-100 scale
+                            'technical_knowledge_score': evaluation_data.get('relevant_experience', 0) * 10,
+                            'problem_solving_score': evaluation_data.get('role_interest_fit', 0) * 10,
+                            'cultural_fit_score': evaluation_data.get('overall_score', 0) * 10,
+                            'enthusiasm_score': evaluation_data.get('overall_score', 0) * 10,
+                            
+                            # Text fields
+                            'strengths': evaluation_data.get('strengths', ''),
+                            'areas_of_concern': evaluation_data.get('concerns', ''),
+                            'key_insights': evaluation_data.get('insights', ''),
+                            'next_steps': evaluation_data.get('next_steps', ''),
+                        }
+                    )
+                    
+                    action = "created" if created else "updated"
+                    logger.info(f"Evaluation {action} successfully for recording {interview_recording.id}")
+                    
+                    return {
+                        "success": True,
+                        "evaluation_id": evaluation.id,
+                        "action": action,
+                        "message": f"Evaluation {action} successfully"
+                    }
+                    
+                except Exception as db_error:
+                    logger.error(f"Error saving evaluation to database: {str(db_error)}")
+                    return {
+                        "success": False,
+                        "error": "Failed to save evaluation to database",
+                        "details": str(db_error)
+                    }
+            else:
+                logger.error("Invalid response data from evaluation service")
+                return {
+                    "success": False,
+                    "error": "Invalid response from evaluation service"
+                }
+            
+            return response_data
+        else:
+            logger.error(f"Interview evaluation service error: {response.status_code} - {response.text}")
+            return {
+                "success": False,
+                "error": f"Service returned status {response.status_code}",
+                "details": response.text
+            }
+            
+    except requests.exceptions.Timeout:
+        logger.error(f"Interview evaluation service timeout for recording {interview_recording.id}")
+        return {
+            "success": False,
+            "error": "Interview evaluation service timeout",
+            "details": "The service took too long to respond"
+        }
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Interview evaluation service request error: {str(e)}")
+        return {
+            "success": False,
+            "error": "Failed to connect to interview evaluation service",
+            "details": str(e)
+        }
+    except Exception as e:
+        logger.error(f"Unexpected error calling interview evaluation service: {str(e)}")
         return {
             "success": False,
             "error": "Unexpected error occurred",
@@ -314,11 +544,29 @@ def get_notifications(user):
 
 @login_required
 def dashboard_home(request):
+    # Import models here to avoid circular imports
+    from .models import InterviewEvaluation, InterviewRecording
+    
     # Filter all data by current user
     user = request.user
     resumes_count = Resume.objects.filter(user=user).count()
     shortlisted_count = Shortlisted.objects.filter(resume__user=user).count()
     pending_interviews_count = Interview.objects.filter(resume__user=user, status='pending').count()
+    
+    # Interview evaluation statistics
+    completed_evaluations_count = InterviewEvaluation.objects.filter(
+        interview_recording__matching_result__user=user,
+        status='completed'
+    ).count()
+    pending_evaluations_count = InterviewEvaluation.objects.filter(
+        interview_recording__matching_result__user=user,
+        status__in=['pending', 'in_progress']
+    ).count()
+    positive_recommendations_count = InterviewEvaluation.objects.filter(
+        interview_recording__matching_result__user=user,
+        status='completed',
+        recommendation__in=['hire', 'strong_hire']
+    ).count()
 
     # Activity data for last 7 days - filtered by user
     today = timezone.now().date()
@@ -326,12 +574,18 @@ def dashboard_home(request):
     activity_resumes = []
     activity_shortlisted = []
     activity_interviews = []
+    activity_evaluations = []
+    
     for i in range(6, -1, -1):
         day = today - timedelta(days=i)
         activity_labels.append(day.strftime('%a'))
         activity_resumes.append(Resume.objects.filter(user=user, uploaded_at__date=day).count())
         activity_shortlisted.append(Shortlisted.objects.filter(resume__user=user, created_at__date=day).count())
         activity_interviews.append(Interview.objects.filter(resume__user=user, scheduled_at__date=day).count())
+        activity_evaluations.append(InterviewEvaluation.objects.filter(
+            interview_recording__matching_result__user=user,
+            created_at__date=day
+        ).count())
 
     # Recent Activities (last 10 activities across all models) - filtered by user
     recent_activities = []
@@ -380,6 +634,22 @@ def dashboard_home(request):
             'timestamp': interview_time
         })
     
+    # Get recent interview evaluations for current user only
+    recent_evaluations = InterviewEvaluation.objects.filter(
+        interview_recording__matching_result__user=user
+    ).select_related('interview_recording__matching_result__resume').order_by('-created_at')[:3]
+    for evaluation in recent_evaluations:
+        recent_activities.append({
+            'title': 'Interview evaluated',
+            'description': f'{evaluation.interview_recording.candidate_name} - {evaluation.get_recommendation_display()} ({evaluation.overall_score}%)',
+            'time_ago': get_time_ago(evaluation.created_at),
+            'color': 'indigo',
+            'icon': '''<svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                   </svg>''',
+            'timestamp': evaluation.created_at
+        })
+    
     # Sort all activities by timestamp (most recent first) and limit to 5
     recent_activities.sort(key=lambda x: x['timestamp'], reverse=True)
     recent_activities = recent_activities[:5]
@@ -391,15 +661,145 @@ def dashboard_home(request):
         'resumes_count': resumes_count,
         'shortlisted_count': shortlisted_count,
         'pending_interviews_count': pending_interviews_count,
+        'completed_evaluations_count': completed_evaluations_count,
+        'pending_evaluations_count': pending_evaluations_count,
+        'positive_recommendations_count': positive_recommendations_count,
         'activity_labels': activity_labels,
         'activity_resumes': activity_resumes,
         'activity_shortlisted': activity_shortlisted,
         'activity_interviews': activity_interviews,
+        'activity_evaluations': activity_evaluations,
         'recent_activities': recent_activities,
         'notifications': notifications,
         'notifications_count': len(notifications),
     }
     return render(request, 'home/dashboard_home.html', context)
+
+
+@login_required
+def interview_evaluations(request):
+    """
+    View for interview evaluations dashboard showing AI evaluation results
+    """
+    # Import models here to avoid circular imports
+    from .models import InterviewEvaluation
+    from django.db import models
+    
+    # Get all evaluations for the current user
+    evaluations = InterviewEvaluation.objects.filter(
+        interview_recording__matching_result__user=request.user
+    ).select_related(
+        'interview_recording__matching_result__resume',
+        'interview_recording__matching_result__job_description'
+    ).order_by('-created_at')
+    
+    # Statistics
+    total_evaluations = evaluations.count()
+    completed_evaluations = evaluations.filter(status='completed').count()
+    pending_evaluations = evaluations.filter(status__in=['pending', 'in_progress']).count()
+    failed_evaluations = evaluations.filter(status='failed').count()
+    
+    # Recommendation statistics
+    strong_hire_count = evaluations.filter(recommendation='strong_hire').count()
+    hire_count = evaluations.filter(recommendation='hire').count()
+    maybe_count = evaluations.filter(recommendation='maybe').count()
+    no_hire_count = evaluations.filter(recommendation='no_hire').count()
+    
+    # Average scores for completed evaluations
+    completed = evaluations.filter(status='completed')
+    avg_overall_score = completed.aggregate(avg=models.Avg('overall_score'))['avg'] or 0
+    avg_communication_score = completed.aggregate(avg=models.Avg('communication_score'))['avg'] or 0
+    avg_technical_score = completed.aggregate(avg=models.Avg('technical_knowledge_score'))['avg'] or 0
+    avg_cultural_fit_score = completed.aggregate(avg=models.Avg('cultural_fit_score'))['avg'] or 0
+    
+    # HR review statistics
+    needs_hr_review_count = evaluations.filter(status='completed', hr_reviewed=False).count()
+    hr_reviewed_count = evaluations.filter(hr_reviewed=True).count()
+    
+    # Recent high-performing candidates (completed evaluations with score >= 75)
+    high_performers = completed.filter(overall_score__gte=75).order_by('-overall_score')[:5]
+    
+    # Get notifications for header
+    notifications = get_notifications(request.user)
+    
+    context = {
+        'evaluations': evaluations,
+        'total_evaluations': total_evaluations,
+        'completed_evaluations': completed_evaluations,
+        'pending_evaluations': pending_evaluations,
+        'failed_evaluations': failed_evaluations,
+        'strong_hire_count': strong_hire_count,
+        'hire_count': hire_count,
+        'maybe_count': maybe_count,
+        'no_hire_count': no_hire_count,
+        'avg_overall_score': round(float(avg_overall_score), 1),
+        'avg_communication_score': round(float(avg_communication_score), 1),
+        'avg_technical_score': round(float(avg_technical_score), 1),
+        'avg_cultural_fit_score': round(float(avg_cultural_fit_score), 1),
+        'needs_hr_review_count': needs_hr_review_count,
+        'hr_reviewed_count': hr_reviewed_count,
+        'high_performers': high_performers,
+        'notifications': notifications,
+        'notifications_count': len(notifications),
+    }
+    
+    return render(request, 'home/interview_evaluations.html', context)
+
+
+@login_required
+def interview_evaluation_detail(request, evaluation_id):
+    """
+    Detailed view for individual interview evaluation
+    """
+    from .models import InterviewEvaluation
+    
+    # Get the evaluation, ensuring it belongs to the current user
+    evaluation = get_object_or_404(
+        InterviewEvaluation.objects.select_related(
+            'interview_recording__matching_result__resume',
+            'interview_recording__matching_result__job_description',
+            'interview_recording'
+        ),
+        id=evaluation_id,
+        interview_recording__matching_result__user=request.user
+    )
+    
+    # Get the interview recording for transcript and audio
+    interview_recording = evaluation.interview_recording
+    
+    # Get all messages for the interview
+    interview_messages = InterviewMessage.objects.filter(
+        interview_recording=interview_recording
+    ).order_by('timestamp')
+    
+    # Prepare detailed feedback from model fields
+    detailed_feedback = {
+        'strengths': evaluation.strengths or [],
+        'areas_of_concern': evaluation.areas_of_concern or [],
+        'key_insights': evaluation.key_insights or [],
+        'communication_assessment': evaluation.communication_assessment or '',
+        'technical_assessment': evaluation.technical_assessment or '',
+        'behavioral_assessment': evaluation.behavioral_assessment or '',
+        'questions_answered_well': evaluation.questions_answered_well or [],
+        'questions_struggled_with': evaluation.questions_struggled_with or [],
+        'recommended_next_steps': evaluation.recommended_next_steps or '',
+        'topics_to_explore_further': evaluation.topics_to_explore_further or [],
+        'specific_concerns_to_address': evaluation.specific_concerns_to_address or [],
+    }
+    
+    # Get notifications for header
+    notifications = get_notifications(request.user)
+    
+    context = {
+        'evaluation': evaluation,
+        'interview_recording': interview_recording,
+        'interview_messages': interview_messages,
+        'detailed_feedback': detailed_feedback,
+        'notifications': notifications,
+        'notifications_count': len(notifications),
+    }
+    
+    return render(request, 'home/interview_evaluation_detail.html', context)
 
 
 def get_time_ago(datetime_obj):
@@ -1283,6 +1683,7 @@ def interview_dashboard(request):
     # Get search and filter parameters
     search_query = request.GET.get('search', '').strip()
     current_status = request.GET.get('status', '')
+    selected_jd = request.GET.get('jd', '')
     
     # Get only ElevenLabs InterviewRecordings (voice interviews)
     recordings = InterviewRecording.objects.filter(
@@ -1307,6 +1708,16 @@ def interview_dashboard(request):
         elif current_status == 'failed':
             recordings = recordings.filter(status='failed')
     
+    # Apply job description filter
+    if selected_jd:
+        recordings = recordings.filter(matching_result__job_description_id=selected_jd)
+    
+    # Import InterviewEvaluation model
+    from .models import InterviewEvaluation, JobDescription
+    
+    # Get all job descriptions for dropdown
+    all_job_descriptions = JobDescription.objects.filter(user=user).values('id', 'title').distinct()
+    
     # Convert to unified format with simplified status mapping
     all_interviews = []
     
@@ -1320,6 +1731,13 @@ def interview_dashboard(request):
             status = 'failed'
         else:
             status = 'pending'  # Default fallback
+        
+        # Get evaluation data if it exists
+        evaluation = None
+        try:
+            evaluation = InterviewEvaluation.objects.get(interview_recording=recording)
+        except InterviewEvaluation.DoesNotExist:
+            evaluation = None
             
         all_interviews.append({
             'id': recording.id,
@@ -1333,6 +1751,12 @@ def interview_dashboard(request):
             'conversation_id': recording.conversation_id,
             'has_audio': bool(recording.audio_file),
             'has_transcript': bool(recording.transcript_file),
+            'evaluation': evaluation,  # Add evaluation data
+            'has_evaluation': evaluation is not None,  # Boolean flag for template logic
+            'email_sent': recording.email_sent,
+            'email_type': recording.email_type,
+            'interview_round': recording.interview_round,
+            'email_sent_at': recording.email_sent_at,
         })
     
     # Calculate summary statistics with simplified statuses
@@ -1340,12 +1764,14 @@ def interview_dashboard(request):
     completed = len([i for i in all_interviews if i['status'] == 'complete'])
     pending = len([i for i in all_interviews if i['status'] == 'pending'])
     failed = len([i for i in all_interviews if i['status'] == 'failed'])
+    evaluated = len([i for i in all_interviews if i['has_evaluation']])
     
     stats = {
         'total_interviews': total_interviews,
         'completed': completed,
         'pending': pending,
         'failed': failed,
+        'evaluated': evaluated,
     }
     
     context = {
@@ -1353,10 +1779,120 @@ def interview_dashboard(request):
         'stats': stats,
         'search_query': search_query,
         'current_status': current_status,
+        'selected_jd': selected_jd,
+        'all_job_descriptions': all_job_descriptions,
         'notifications': get_notifications(user),
     }
     
     return render(request, 'home/interview_dashboard.html', context)
+
+@login_required
+@require_http_methods(["GET"])
+def get_profile_address(request):
+    """Get user's profile office address"""
+    from .models import Profile
+    
+    try:
+        profile = Profile.objects.get(user=request.user)
+        return JsonResponse({
+            'success': True,
+            'office_address': profile.office_address or ''
+        })
+    except Profile.DoesNotExist:
+        return JsonResponse({
+            'success': True,
+            'office_address': ''
+        })
+    except Exception as e:
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        })
+
+@login_required 
+@require_http_methods(["POST"])
+def send_candidate_emails(request):
+    """Send emails to selected candidates via email agent with interview scheduling"""
+    import json
+    import requests
+    
+    try:
+        data = json.loads(request.body)
+        candidate_ids = data.get('candidate_ids', [])
+        email_type = data.get('email_type', 'selection')
+        interview_round = data.get('interview_round', 'initial')
+        
+        # New interview scheduling parameters
+        interview_type = data.get('interviewType')  # 'onsite' or 'online'
+        interview_datetime = data.get('interviewDateTime')  # ISO format string
+        interview_location = data.get('interviewLocation')  # address or 'default_office_address'
+        
+        if not candidate_ids:
+            return JsonResponse({'success': False, 'error': 'No candidates selected'})
+        
+        print(f"DEBUG DJANGO VIEW: Received interview scheduling data:")
+        print(f"  - Interview Type: {interview_type}")
+        print(f"  - Interview DateTime: {interview_datetime}")
+        print(f"  - Interview Location: {interview_location}")
+        print(f"  - Interview Round: {interview_round}")
+        print(f"  - Email Type: {email_type}")
+        
+        # Prepare payload for email agent
+        payload = {
+            "candidate_ids": candidate_ids,
+            "email_type": email_type,
+            "interview_round": interview_round,
+            "hr_user_id": request.user.id
+        }
+        
+        # Add interview scheduling data if provided
+        if interview_type and interview_datetime:
+            payload.update({
+                "interviewType": interview_type,
+                "interviewDateTime": interview_datetime,
+                "interviewLocation": interview_location
+            })
+            print(f"DEBUG DJANGO VIEW: Added scheduling data to payload")
+        
+        # Call email agent
+        email_agent_url = "http://localhost:8003/send-emails"
+        print(f"DEBUG DJANGO VIEW: Calling email agent with payload: {payload}")
+        
+        try:
+            response = requests.post(email_agent_url, json=payload, timeout=60)  # Increased timeout for Zoom API calls
+        except requests.exceptions.Timeout:
+            return JsonResponse({
+                'success': False, 
+                'error': 'Request timeout. Please try again - Zoom meeting creation may take longer than usual.'
+            })
+        except requests.exceptions.ConnectionError:
+            return JsonResponse({
+                'success': False, 
+                'error': 'Cannot connect to email service. Please ensure the email agent is running on port 8003.'
+            })
+        
+        if response.status_code == 200:
+            result = response.json()
+            print(f"DEBUG DJANGO VIEW: Email agent response: {result}")
+            return JsonResponse({
+                'success': True,
+                'success_count': result.get('success_count', 0),
+                'failed_count': result.get('failed_count', 0),
+                'message': result.get('message', 'Emails sent successfully')
+            })
+        else:
+            error_detail = response.text if response.text else 'Email service error'
+            print(f"DEBUG DJANGO VIEW: Email agent error ({response.status_code}): {error_detail}")
+            return JsonResponse({
+                'success': False, 
+                'error': f'Email service error: {error_detail}'
+            })
+            
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON data'})
+    except Exception as e:
+        print(f"DEBUG DJANGO VIEW: Exception in send_candidate_emails: {str(e)}")
+        return JsonResponse({'success': False, 'error': str(e)})
 
 @login_required
 @require_http_methods(["POST"])
@@ -2345,3 +2881,147 @@ def interview_recording_detail(request, recording_id):
     except InterviewRecording.DoesNotExist:
         messages.error(request, 'Interview recording not found.')
         return redirect('interview_recordings')
+
+@login_required
+@require_http_methods(["POST"])
+def retry_evaluation(request, recording_id):
+    """Retry evaluation for a specific interview recording"""
+    try:
+        # Get the interview recording
+        recording = get_object_or_404(InterviewRecording, 
+                                    id=recording_id,
+                                    matching_result__user=request.user)
+        
+        if recording.status != 'completed':
+            return JsonResponse({
+                'success': False,
+                'message': 'Can only retry evaluation for completed interviews'
+            })
+        
+        # Check if there's already an evaluation
+        from .models import InterviewEvaluation
+        existing_evaluation = InterviewEvaluation.objects.filter(
+            interview_recording=recording
+        ).first()
+        
+        # Call the evaluation service
+        result = call_fastapi_interview_evaluation_service(recording)
+        
+        if result.get('success'):
+            if existing_evaluation:
+                messages.success(request, f'Evaluation updated successfully for {recording.matching_result.resume.candidate_name}')
+            else:
+                messages.success(request, f'Evaluation created successfully for {recording.matching_result.resume.candidate_name}')
+            
+            return JsonResponse({
+                'success': True,
+                'message': 'Evaluation retry successful',
+                'redirect_url': f'/dashboard/interviews/'
+            })
+        else:
+            error_msg = result.get('error', 'Unknown evaluation error')
+            logger.error(f"Evaluation retry failed for recording {recording_id}: {error_msg}")
+            
+            return JsonResponse({
+                'success': False,
+                'message': f'Evaluation failed: {error_msg}'
+            })
+    
+    except Exception as e:
+        logger.error(f"Error in evaluation retry for recording {recording_id}: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'message': f'Server error: {str(e)}'
+        })
+
+@login_required
+@require_http_methods(["POST"])
+def retry_interview(request, recording_id):
+    """Retry entire interview for a specific recording (creates new interview session)"""
+    try:
+        # Get the original interview recording
+        original_recording = get_object_or_404(InterviewRecording, 
+                                            id=recording_id,
+                                            matching_result__user=request.user)
+        
+        # Get the matching result to create new interview
+        matching_result = original_recording.matching_result
+        
+        if not matching_result:
+            return JsonResponse({
+                'success': False,
+                'message': 'No matching result found for this interview'
+            })
+        
+        # Check if we can retry (don't create too many retries)
+        existing_recordings = InterviewRecording.objects.filter(
+            matching_result=matching_result
+        ).count()
+        
+        if existing_recordings >= 5:  # Limit to 5 attempts
+            return JsonResponse({
+                'success': False,
+                'message': 'Maximum retry attempts reached (5 attempts per candidate)'
+            })
+        
+        # Create new interview recording entry
+        new_recording = InterviewRecording.objects.create(
+            matching_result=matching_result,
+            status='pending',
+            created_at=timezone.now()
+        )
+        
+        # Try to start new interview session
+        try:
+            # Import ElevenLabs service
+            from home.services_elevenlabs import ElevenLabsAPIService
+            
+            # Initialize ElevenLabs service  
+            interview_service = ElevenLabsAPIService()
+            
+            # Call the interview service to create new session
+            result = interview_service.start_interview(matching_result.id)
+            
+            if result.get('status') == 'success':
+                # Update the new recording with session details
+                conversation_id = result.get('elevenlabs_session_id')  # Use the correct field name
+                if conversation_id:
+                    new_recording.conversation_id = conversation_id
+                    new_recording.status = 'processing'
+                    new_recording.save()
+                
+                messages.success(request, f'New interview session started for {matching_result.resume.candidate_name}')
+                
+                return JsonResponse({
+                    'success': True,
+                    'message': 'Interview retry started successfully',
+                    'interview_url': f'/voice-interview/{matching_result.id}/',  # Standard interview URL
+                    'new_recording_id': new_recording.id,
+                    'redirect_url': f'/dashboard/interviews/'
+                })
+            else:
+                # Delete the failed recording entry
+                new_recording.delete()
+                error_msg = result.get('message', 'Failed to start new interview')
+                
+                return JsonResponse({
+                    'success': False,
+                    'message': f'Interview retry failed: {error_msg}'
+                })
+                
+        except Exception as service_error:
+            # Delete the failed recording entry
+            new_recording.delete()
+            logger.error(f"Interview service error during retry: {str(service_error)}")
+            
+            return JsonResponse({
+                'success': False,
+                'message': f'Interview service error: {str(service_error)}'
+            })
+    
+    except Exception as e:
+        logger.error(f"Error in interview retry for recording {recording_id}: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'message': f'Server error: {str(e)}'
+        })

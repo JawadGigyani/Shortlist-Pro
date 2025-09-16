@@ -1,0 +1,223 @@
+{% extends 'home/dashboard_base.html' %}
+{% load static %}
+
+{% block dashboard_title %}Interview Evaluation - {{ interview_recording.candidate_name }}{% endblock %}
+
+{% block dashboard_content %}
+<div class="space-y-6">
+  <!-- Header -->
+  <div class="flex items-center justify-between">
+    <div class="flex items-center space-x-4">
+      <a href="{% url 'interviews' %}" class="inline-flex items-center px-3 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 transition-colors">
+        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+        </svg>
+        Back to Interviews
+      </a>
+      <div>
+        <h1 class="text-3xl font-bold text-gray-900">{{ interview_recording.candidate_name }}'s Evaluation</h1>
+        <p class="text-gray-600 mt-1">
+          {% if interview_recording.job_title %}{{ interview_recording.job_title }}{% endif %}
+          {% if interview_recording.job_title and interview_recording.company_name and interview_recording.company_name != 'Not specified' %} • {% endif %}
+          {% if interview_recording.company_name and interview_recording.company_name != 'Not specified' %}{{ interview_recording.company_name }}{% endif %}
+          {% if not interview_recording.job_title and not interview_recording.company_name %}Interview Evaluation{% endif %}
+        </p>
+      </div>
+    </div>
+    <div class="text-right">
+      <div class="inline-flex items-center space-x-3">
+        <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium
+          {% if evaluation.recommendation == 'STRONG_HIRE' %}bg-green-100 text-green-800
+          {% elif evaluation.recommendation == 'HIRE' %}bg-blue-100 text-blue-800  
+          {% elif evaluation.recommendation == 'MAYBE' %}bg-yellow-100 text-yellow-800
+          {% elif evaluation.recommendation == 'NO_HIRE' %}bg-red-100 text-red-800
+          {% else %}bg-gray-100 text-gray-800{% endif %}">
+          {{ evaluation.get_recommendation_display|default:"Not Evaluated" }}
+        </span>
+        <div class="text-right">
+          <div class="text-2xl font-bold text-gray-900">{{ evaluation.overall_score|floatformat:1 }}<span class="text-lg text-gray-500">/10</span></div>
+          <div class="text-sm text-gray-500">Overall Score</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Evaluation Overview -->
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+    <!-- Communication Clarity -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      <div class="flex items-center justify-between mb-4">
+        <div class="p-2 bg-blue-100 rounded-lg">
+          <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+          </svg>
+        </div>
+        <div class="text-right">
+          <div class="text-2xl font-bold text-gray-900">{{ evaluation.communication_clarity|floatformat:1 }}</div>
+          <div class="text-sm text-gray-500">/10</div>
+        </div>
+      </div>
+      <div>
+        <h3 class="text-sm font-medium text-gray-900 mb-2">Communication Clarity</h3>
+        <p class="text-xs text-gray-600">Professional articulation and clear expression of ideas</p>
+      </div>
+    </div>
+
+    <!-- Relevant Experience -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      <div class="flex items-center justify-between mb-4">
+        <div class="p-2 bg-green-100 rounded-lg">
+          <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2-2v2m8 0V6a2 2 0 012 2v6.5" />
+          </svg>
+        </div>
+        <div class="text-right">
+          <div class="text-2xl font-bold text-gray-900">{{ evaluation.relevant_experience|floatformat:1 }}</div>
+          <div class="text-sm text-gray-500">/10</div>
+        </div>
+      </div>
+      <div>
+        <h3 class="text-sm font-medium text-gray-900 mb-2">Relevant Experience</h3>
+        <p class="text-xs text-gray-600">Experience depth and relevance to the role</p>
+      </div>
+    </div>
+
+    <!-- Role Interest & Fit -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      <div class="flex items-center justify-between mb-4">
+        <div class="p-2 bg-purple-100 rounded-lg">
+          <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+          </svg>
+        </div>
+        <div class="text-right">
+          <div class="text-2xl font-bold text-gray-900">{{ evaluation.role_interest_fit|floatformat:1 }}</div>
+          <div class="text-sm text-gray-500">/10</div>
+        </div>
+      </div>
+      <div>
+        <h3 class="text-sm font-medium text-gray-900 mb-2">Role Interest & Fit</h3>
+        <p class="text-xs text-gray-600">Understanding of role and genuine interest</p>
+      </div>
+    </div>
+
+    <!-- Interview Date -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      <div class="flex items-center justify-between mb-4">
+        <div class="p-2 bg-indigo-100 rounded-lg">
+          <svg class="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+        </div>
+        <div class="text-right">
+          <div class="text-sm font-medium text-gray-900">{{ evaluation.created_at|date:"M d, Y" }}</div>
+          <div class="text-xs text-gray-500">{{ evaluation.created_at|time:"g:i A" }}</div>
+        </div>
+      </div>
+      <div>
+        <h3 class="text-sm font-medium text-gray-900 mb-2">Evaluation Date</h3>
+        <p class="text-xs text-gray-600">When this evaluation was completed</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Evaluation Details -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <!-- Strengths -->
+    {% if evaluation.strengths %}
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      <div class="flex items-center mb-4">
+        <div class="p-2 bg-green-100 rounded-lg mr-3">
+          <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+        <h3 class="text-lg font-semibold text-gray-900">Strengths</h3>
+      </div>
+      <div class="prose prose-sm max-w-none">
+        <p class="text-gray-700 leading-relaxed">{{ evaluation.strengths }}</p>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Areas of Concern -->
+    {% if evaluation.areas_of_concern %}
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      <div class="flex items-center mb-4">
+        <div class="p-2 bg-yellow-100 rounded-lg mr-3">
+          <svg class="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4.5c-.77-.833-1.96-.833-2.73 0L3.084 16.5c-.77.833.192 2.5 1.732 2.5z" />
+          </svg>
+        </div>
+        <h3 class="text-lg font-semibold text-gray-900">Areas of Concern</h3>
+      </div>
+      <div class="prose prose-sm max-w-none">
+        <p class="text-gray-700 leading-relaxed">{{ evaluation.areas_of_concern }}</p>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Key Insights -->
+    {% if evaluation.key_insights %}
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      <div class="flex items-center mb-4">
+        <div class="p-2 bg-blue-100 rounded-lg mr-3">
+          <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+          </svg>
+        </div>
+        <h3 class="text-lg font-semibold text-gray-900">Key Insights</h3>
+      </div>
+      <div class="prose prose-sm max-w-none">
+        <p class="text-gray-700 leading-relaxed">{{ evaluation.key_insights }}</p>
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Next Steps -->
+    {% if evaluation.next_steps %}
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+      <div class="flex items-center mb-4">
+        <div class="p-2 bg-indigo-100 rounded-lg mr-3">
+          <svg class="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 9l3 3m0 0l-3 3m3-3H8m13 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+        <h3 class="text-lg font-semibold text-gray-900">Next Steps</h3>
+      </div>
+      <div class="prose prose-sm max-w-none">
+        <p class="text-gray-700 leading-relaxed">{{ evaluation.next_steps }}</p>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Candidate Information -->
+  <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+    <h3 class="text-lg font-semibold text-gray-900 mb-4">Candidate Information</h3>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Name</label>
+        <p class="text-sm text-gray-900">{{ interview_recording.candidate_name|default:"Not provided" }}</p>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+        <p class="text-sm text-blue-600">{{ interview_recording.matching_result.resume.email|default:"Not provided" }}</p>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Position</label>
+        <p class="text-sm text-gray-900">{{ interview_recording.job_title|default:"Not specified" }}</p>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Company</label>
+        <p class="text-sm text-gray-900">{{ interview_recording.company_name|default:"Not specified" }}</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Actions -->
+  <div class="flex items-center justify-center bg-gray-50 rounded-xl p-6">
+    <span class="text-sm text-gray-600">Evaluation completed on {{ evaluation.created_at|date:"M d, Y" }} at {{ evaluation.created_at|time:"g:i A" }}</span>
+  </div>
+</div>
+{% endblock %}

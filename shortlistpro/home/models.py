@@ -5,6 +5,7 @@ class Profile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     profile_picture = models.ImageField(upload_to='profiles/', blank=True, null=True)
     company_name = models.CharField(max_length=255, default='')
+    office_address = models.TextField(blank=True, null=True, help_text="Default office address for onsite interviews")
     is_premium = models.BooleanField(default=False)
 
     def __str__(self):
@@ -327,6 +328,18 @@ class InterviewRecording(models.Model):
         ('processing', 'Processing'),
     ]
     
+    EMAIL_TYPE_CHOICES = [
+        ('selection', 'Selection'),
+        ('rejection', 'Rejection'),
+    ]
+    
+    INTERVIEW_ROUND_CHOICES = [
+        ('initial', 'Initial Interview'),
+        ('technical', 'Technical Interview'),
+        ('behavioral', 'Behavioral Interview'),
+        ('final', 'Final Interview'),
+    ]
+    
     # Core relationships
     matching_result = models.OneToOneField(
         MatchingResult, 
@@ -347,6 +360,20 @@ class InterviewRecording(models.Model):
     duration_seconds = models.IntegerField(default=0)
     started_at = models.DateTimeField(null=True, blank=True)
     ended_at = models.DateTimeField(null=True, blank=True)
+    
+    # Email status tracking
+    email_sent = models.BooleanField(default=False)
+    email_type = models.CharField(max_length=20, choices=EMAIL_TYPE_CHOICES, blank=True, null=True)
+    interview_round = models.CharField(max_length=20, choices=INTERVIEW_ROUND_CHOICES, blank=True, null=True)
+    email_sent_at = models.DateTimeField(blank=True, null=True)
+    
+    # Interview scheduling fields
+    interview_type = models.CharField(max_length=20, choices=[('onsite', 'Onsite'), ('online', 'Online')], blank=True, null=True)
+    interview_date = models.DateTimeField(blank=True, null=True)
+    interview_location = models.TextField(blank=True, null=True, help_text="Office address for onsite interviews")
+    meeting_link = models.URLField(blank=True, null=True, help_text="Zoom meeting link for online interviews")
+    meeting_id = models.CharField(max_length=255, blank=True, null=True, help_text="Zoom meeting ID")
+    meeting_password = models.CharField(max_length=50, blank=True, null=True, help_text="Zoom meeting password")
     
     # Raw data from ElevenLabs
     conversation_data = models.JSONField(blank=True, null=True)  # Full API response
@@ -386,6 +413,13 @@ class InterviewRecording(models.Model):
         if self.matching_result and self.matching_result.job_description:
             return self.matching_result.job_description.title
         return "Unknown Position"
+    
+    @property  
+    def company_name(self):
+        """Get company name from user's profile"""
+        if self.matching_result and self.matching_result.user and hasattr(self.matching_result.user, 'profile'):
+            return self.matching_result.user.profile.company_name or "Not specified"
+        return "Not specified"
 
 
 class InterviewMessage(models.Model):
@@ -427,3 +461,209 @@ class InterviewMessage(models.Model):
     
     def __str__(self):
         return f"{self.get_speaker_display()}: {self.message_content[:50]}..."
+
+
+class InterviewEvaluation(models.Model):
+    """Model to store AI-powered evaluation of interview transcripts"""
+    
+    # Evaluation status choices
+    STATUS_CHOICES = [
+        ('pending', 'Evaluation Pending'),
+        ('in_progress', 'Evaluation In Progress'),
+        ('completed', 'Evaluation Completed'),
+        ('failed', 'Evaluation Failed'),
+    ]
+    
+    # Next round recommendation choices
+    RECOMMENDATION_CHOICES = [
+        ('strong_hire', 'Strong Hire - Proceed Immediately'),
+        ('hire', 'Hire - Proceed to Next Round'),
+        ('maybe', 'Maybe - Consider with Caution'),
+        ('no_hire', 'No Hire - Do Not Proceed'),
+        ('insufficient_data', 'Insufficient Data for Decision'),
+    ]
+    
+    # Confidence level choices
+    CONFIDENCE_CHOICES = [
+        ('high', 'High Confidence'),
+        ('medium', 'Medium Confidence'),
+        ('low', 'Low Confidence'),
+    ]
+    
+    # Core relationships
+    interview_recording = models.OneToOneField(
+        InterviewRecording, 
+        on_delete=models.CASCADE, 
+        related_name='evaluation'
+    )
+    
+    # Evaluation status
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    
+    # Simplified Pre-screening Evaluation Criteria (0-10 scale)
+    communication_clarity = models.DecimalField(max_digits=4, decimal_places=2, default=0.00, help_text="Clear communication and professional articulation")
+    relevant_experience = models.DecimalField(max_digits=4, decimal_places=2, default=0.00, help_text="Experience relevance and depth matching resume claims")
+    role_interest_fit = models.DecimalField(max_digits=4, decimal_places=2, default=0.00, help_text="Understanding of role and genuine interest")
+    
+    # Overall score (calculated from above 3 criteria)
+    overall_score = models.DecimalField(max_digits=4, decimal_places=2, default=0.00)
+    
+    # Legacy detailed scores (kept for backward compatibility, will be deprecated)
+    communication_score = models.DecimalField(max_digits=5, decimal_places=2, default=0.00, help_text="DEPRECATED: Use communication_clarity instead")
+    technical_knowledge_score = models.DecimalField(max_digits=5, decimal_places=2, default=0.00, help_text="DEPRECATED: Detailed scoring not needed for pre-screening")
+    problem_solving_score = models.DecimalField(max_digits=5, decimal_places=2, default=0.00, help_text="DEPRECATED: Detailed scoring not needed for pre-screening")
+    cultural_fit_score = models.DecimalField(max_digits=5, decimal_places=2, default=0.00, help_text="DEPRECATED: Use role_interest_fit instead")
+    enthusiasm_score = models.DecimalField(max_digits=5, decimal_places=2, default=0.00, help_text="DEPRECATED: Use role_interest_fit instead")
+    
+    # Simplified recommendation choices for pre-screening
+    SIMPLIFIED_RECOMMENDATION_CHOICES = [
+        ('PROCEED', 'Proceed to Next Round - Strong candidate'),
+        ('CONDITIONAL', 'Conditional - Needs further evaluation'),
+        ('REJECT', 'Reject - Not suitable for this position'),
+        ('INSUFFICIENT', 'Insufficient Data - Interview incomplete'),
+    ]
+    
+    # Recommendation and confidence (updated for pre-screening focus)
+    recommendation = models.CharField(max_length=30, choices=SIMPLIFIED_RECOMMENDATION_CHOICES, default='INSUFFICIENT')
+    confidence_level = models.CharField(max_length=20, choices=CONFIDENCE_CHOICES, default='medium')
+    
+    # Detailed qualitative feedback
+    strengths = models.JSONField(default=list, blank=True, help_text="List of candidate strengths identified")
+    areas_of_concern = models.JSONField(default=list, blank=True, help_text="List of areas that need improvement or raise concerns")
+    key_insights = models.JSONField(default=list, blank=True, help_text="Important insights about the candidate")
+    
+    # Interview analysis
+    communication_assessment = models.TextField(blank=True, null=True, help_text="Analysis of candidate's communication skills")
+    technical_assessment = models.TextField(blank=True, null=True, help_text="Analysis of technical knowledge and skills")
+    behavioral_assessment = models.TextField(blank=True, null=True, help_text="Analysis of behavioral responses and cultural fit")
+    
+    # Questions analysis
+    questions_answered_well = models.JSONField(default=list, blank=True, help_text="Questions the candidate handled effectively")
+    questions_struggled_with = models.JSONField(default=list, blank=True, help_text="Questions the candidate had difficulty with")
+    
+    # Next round preparation
+    recommended_next_steps = models.TextField(blank=True, null=True, help_text="Specific recommendations for next interview round")
+    topics_to_explore_further = models.JSONField(default=list, blank=True, help_text="Topics that need deeper exploration")
+    specific_concerns_to_address = models.JSONField(default=list, blank=True, help_text="Specific concerns to address in next round")
+    
+    # HR workflow
+    hr_reviewed = models.BooleanField(default=False, help_text="Whether HR has reviewed this evaluation")
+    hr_notes = models.TextField(blank=True, null=True, help_text="Additional notes from HR review")
+    hr_decision_override = models.CharField(max_length=30, choices=RECOMMENDATION_CHOICES, blank=True, null=True, help_text="HR override of AI recommendation")
+    
+    # Email campaign integration
+    next_round_email_sent = models.BooleanField(default=False, help_text="Whether next round invitation email has been sent")
+    rejection_email_sent = models.BooleanField(default=False, help_text="Whether rejection email has been sent")
+    
+    # Evaluation metadata
+    evaluation_duration_seconds = models.IntegerField(default=0, help_text="Time taken for AI evaluation")
+    evaluation_model_version = models.CharField(max_length=50, blank=True, null=True, help_text="Version of AI model used for evaluation")
+    
+    # Raw AI response
+    raw_ai_response = models.JSONField(blank=True, null=True, help_text="Raw response from AI evaluation agent")
+    
+    # Timestamps
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    evaluation_completed_at = models.DateTimeField(blank=True, null=True)
+    
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['status']),
+            models.Index(fields=['recommendation']),
+            models.Index(fields=['overall_score']),
+            models.Index(fields=['hr_reviewed']),
+            models.Index(fields=['created_at']),
+        ]
+    
+    def __str__(self):
+        candidate_name = self.interview_recording.candidate_name
+        return f"Evaluation: {candidate_name} - {self.get_recommendation_display()} ({self.overall_score}%)"
+    
+    @property
+    def score_breakdown(self):
+        """Return formatted score breakdown using simplified criteria"""
+        return {
+            'overall': float(self.overall_score),
+            'communication_clarity': float(self.communication_clarity),
+            'relevant_experience': float(self.relevant_experience),
+            'role_interest_fit': float(self.role_interest_fit),
+            # Legacy fields for backward compatibility
+            'communication': float(self.communication_score),
+            'technical': float(self.technical_knowledge_score),
+            'problem_solving': float(self.problem_solving_score),
+            'cultural_fit': float(self.cultural_fit_score),
+            'enthusiasm': float(self.enthusiasm_score),
+        }
+    
+    @property
+    def is_positive_recommendation(self):
+        """Check if recommendation is positive (proceed or conditional)"""
+        return self.recommendation in ['PROCEED', 'CONDITIONAL']
+    
+    @property
+    def is_proceed_recommendation(self):
+        """Check if recommendation is to proceed to next round"""
+        return self.recommendation == 'PROCEED'
+    
+    @property
+    def needs_hr_review(self):
+        """Check if evaluation needs HR review"""
+        return not self.hr_reviewed and self.status == 'completed'
+    
+    @property
+    def candidate_info(self):
+        """Get candidate information from related interview recording"""
+        recording = self.interview_recording
+        if recording.matching_result and recording.matching_result.resume:
+            resume = recording.matching_result.resume
+            return {
+                'name': resume.candidate_name,
+                'email': resume.email,
+                'position': recording.job_title,
+                'interview_date': recording.created_at,
+            }
+        return {
+            'name': 'Unknown Candidate',
+            'email': '',
+            'position': 'Unknown Position',
+            'interview_date': recording.created_at,
+        }
+    
+    @property
+    def evaluation_summary(self):
+        """Generate a brief evaluation summary for dashboard display using simplified criteria"""
+        if self.status != 'completed':
+            return f"Evaluation {self.get_status_display()}"
+        
+        summary = f"{self.get_recommendation_display()} "
+        summary += f"({self.overall_score}/10 overall, {self.get_confidence_level_display()})"
+        
+        # Show top performing area from simplified criteria
+        scores = {
+            'Communication': self.communication_clarity,
+            'Experience': self.relevant_experience, 
+            'Role Fit': self.role_interest_fit
+        }
+        top_area = max(scores, key=scores.get)
+        if scores[top_area] > 0:
+            summary += f" - Strongest: {top_area} ({scores[top_area]}/10)"
+        
+        return summary
+
+    def calculate_overall_score(self):
+        """Calculate overall score as average of 3 simplified criteria"""
+        scores = [self.communication_clarity, self.relevant_experience, self.role_interest_fit]
+        valid_scores = [float(score) for score in scores if score > 0]
+        if valid_scores:
+            return round(sum(valid_scores) / len(valid_scores), 2)
+        return 0.00
+    
+    def save(self, *args, **kwargs):
+        """Override save to auto-calculate overall score"""
+        # Auto-calculate overall score from simplified criteria
+        if any([self.communication_clarity, self.relevant_experience, self.role_interest_fit]):
+            self.overall_score = self.calculate_overall_score()
+        
+        super().save(*args, **kwargs)

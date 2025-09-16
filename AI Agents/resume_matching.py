@@ -117,10 +117,28 @@ CORE ASSESSMENT CRITERIA:
 
 🎯 SIMPLE DECISION FRAMEWORK:
 
-INTERVIEW RECOMMENDATION:
-- "Interview": Meets basic requirements, worth talking to (Score: 60-100)
-- "Maybe": Borderline candidate, consider if time allows (Score: 40-59)
-- "Skip": Doesn't meet basic requirements (Score: 0-39)
+🚨 STRICT INTERVIEW RECOMMENDATION (Enhanced Decisiveness):
+- "Interview": Strong match, definite conversation (Score: 65-100)
+- "Maybe": Borderline with potential, limited gaps (Score: 45-64)  
+- "Skip": Significant gaps, not suitable (Score: 0-44)
+
+🎯 ENHANCED DECISION CRITERIA:
+
+AUTOMATIC SKIP if:
+- Experience score < 35% AND Skills score < 70%
+- Missing 3+ critical skills AND Experience < 50%
+- No relevant background for role level
+- Major educational misalignment for senior roles
+
+CONDITIONAL MAYBE only if:
+- ONE area is weak but others are strong (e.g., low experience but high skills + education)
+- Transferable experience with learning potential
+- Junior role with growth trajectory shown
+
+INTERVIEW if:
+- Meets most basic requirements with reasonable scores
+- Demonstrates progression and relevant growth
+- Skills and experience align well with role needs
 
 CONFIDENCE LEVELS:
 - High: Clear evidence supporting decision
@@ -143,30 +161,40 @@ CONVERSATION TOPICS (5 questions):
 - Understanding motivation and interest
 - Assessing communication skills
 
-🔍 SCORING GUIDELINES:
+🔍 STRICT SCORING GUIDELINES:
 
-INTERVIEW (60-100):
-- Meets most basic requirements
-- Has relevant skills or experience
-- Resume shows progression/growth
-- Worth a conversation
+INTERVIEW (65-100):
+- Meets most basic requirements with solid evidence
+- Has relevant skills AND appropriate experience level
+- Resume shows clear progression/growth in relevant areas
+- Definitely worth a conversation
 
-MAYBE (40-59):
-- Meets some requirements but has gaps
-- Transferable skills but not perfect match
-- Could be worth talking to if candidate pool is limited
+MAYBE (45-64):
+- Meets SOME requirements but has notable gaps in ONE area only
+- Strong in 2/3 areas (skills, experience, education) but weak in one
+- Transferable skills with demonstrated learning ability
+- Could be worth talking to if ONE specific gap can be addressed
 
-SKIP (0-39):
-- Missing critical requirements
-- No relevant experience or skills
-- Not a good fit for this role
+SKIP (0-44):
+- Missing critical requirements in MULTIPLE areas
+- Experience < 35% AND Skills < 70% (major gaps)
+- No relevant experience or skills for role level
+- Not a good fit - would require extensive training
 
-⚡ KEY PRINCIPLES:
-- This is PRE-SCREENING, not final assessment
-- Focus on "worth talking to" not "perfect candidate"
-- Consider potential and transferable skills
-- Look for communication quality in resume
-- Be practical about requirements vs nice-to-haves
+⚡ ENHANCED EVALUATION PRINCIPLES:
+- This is PRE-SCREENING with STRICT standards
+- Focus on "clearly worth talking to" not just "might be okay"
+- Be decisive - avoid "Maybe" unless genuinely mixed signals
+- Consider role seniority - senior roles need proven experience
+- Look for evidence-based qualifications, not just potential
+- Multiple weak areas = automatic SKIP
+- Only recommend interview if confident they meet baseline requirements
+
+🚨 CRITICAL ENFORCEMENT:
+- Experience < 35% + Skills < 70% = SKIP (no exceptions)
+- Missing 3+ critical skills = SKIP unless exceptional in other areas
+- Be realistic about training capacity vs role requirements
+- Don't be influenced by nice resume formatting or buzzwords
 
 🎯 OUTPUT REQUIREMENTS:
 - Clear Interview/Maybe/Skip recommendation

@@ -464,6 +464,10 @@ class ElevenLabsAPIService:
             interview_recording.save()
             
             logger.info(f"Successfully created interview recording for {conversation_id}")
+            
+            # Trigger interview evaluation after successful completion
+            self._trigger_interview_evaluation(interview_recording)
+            
             return interview_recording
             
         except Exception as e:
@@ -582,8 +586,146 @@ class ElevenLabsAPIService:
             existing_recording.status = 'completed'
             existing_recording.save()
             logger.info(f"Successfully completed existing recording for {conversation_id}")
+            
+            # Trigger interview evaluation after successful completion
+            self._trigger_interview_evaluation(existing_recording)
         
         return existing_recording
+
+    def _trigger_interview_evaluation(self, interview_recording):
+        """
+        Trigger interview evaluation for a completed interview recording
+        
+        Args:
+            interview_recording: InterviewRecording instance that was just completed
+        """
+        try:
+            # Import here to avoid circular imports
+            from .views import call_fastapi_interview_evaluation_service
+            from .models import InterviewEvaluation
+            
+            # Check if evaluation already exists
+            if hasattr(interview_recording, 'evaluation'):
+                logger.info(f"Interview evaluation already exists for recording {interview_recording.id}")
+                return
+            
+            # Check if we have sufficient data for evaluation
+            if not interview_recording.conversation_data and not interview_recording.messages.exists():
+                logger.warning(f"Insufficient data for evaluation - no transcript available for recording {interview_recording.id}")
+                return
+            
+            # Create pending evaluation record
+            evaluation = InterviewEvaluation.objects.create(
+                interview_recording=interview_recording,
+                status='pending'
+            )
+            logger.info(f"Created pending evaluation record {evaluation.id} for interview recording {interview_recording.id}")
+            
+            # Launch evaluation in background (using threading to avoid blocking)
+            import threading
+            evaluation_thread = threading.Thread(
+                target=self._process_interview_evaluation,
+                args=(evaluation,)
+            )
+            evaluation_thread.daemon = True
+            evaluation_thread.start()
+            
+            logger.info(f"Started background evaluation process for recording {interview_recording.id}")
+            
+        except Exception as e:
+            logger.error(f"Error triggering interview evaluation for recording {interview_recording.id}: {e}")
+
+    def _process_interview_evaluation(self, evaluation):
+        """
+        Process interview evaluation in background thread
+        
+        Args:
+            evaluation: InterviewEvaluation instance to process
+        """
+        try:
+            # Import here to avoid circular imports
+            from .views import call_fastapi_interview_evaluation_service
+            from django.utils import timezone
+            
+            # Update status to in_progress
+            evaluation.status = 'in_progress'
+            evaluation.save()
+            
+            logger.info(f"Starting AI evaluation for interview recording {evaluation.interview_recording.id}")
+            
+            # Call the AI evaluation service
+            start_time = timezone.now()
+            evaluation_result = call_fastapi_interview_evaluation_service(evaluation.interview_recording)
+            end_time = timezone.now()
+            
+            evaluation_duration = int((end_time - start_time).total_seconds())
+            
+            if evaluation_result.get('success'):
+                evaluation_data = evaluation_result.get('data')
+                if evaluation_data:
+                    # Update evaluation record with AI results
+                    evaluation.overall_score = evaluation_data.get('overall_score', 0)
+                    evaluation.communication_score = evaluation_data.get('communication_score', 0)
+                    evaluation.technical_knowledge_score = evaluation_data.get('technical_knowledge_score', 0)
+                    evaluation.problem_solving_score = evaluation_data.get('problem_solving_score', 0)
+                    evaluation.cultural_fit_score = evaluation_data.get('cultural_fit_score', 0)
+                    evaluation.enthusiasm_score = evaluation_data.get('enthusiasm_score', 0)
+                    
+                    evaluation.recommendation = evaluation_data.get('recommendation', 'insufficient_data')
+                    evaluation.confidence_level = evaluation_data.get('confidence_level', 'medium')
+                    
+                    # Store qualitative feedback
+                    evaluation.strengths = evaluation_data.get('strengths', [])
+                    evaluation.areas_of_concern = evaluation_data.get('areas_of_concern', [])
+                    evaluation.key_insights = evaluation_data.get('key_insights', [])
+                    
+                    # Store detailed assessments
+                    evaluation.communication_assessment = evaluation_data.get('communication_assessment', '')
+                    evaluation.technical_assessment = evaluation_data.get('technical_assessment', '')
+                    evaluation.behavioral_assessment = evaluation_data.get('behavioral_assessment', '')
+                    
+                    # Store question analysis
+                    evaluation.questions_answered_well = evaluation_data.get('questions_answered_well', [])
+                    evaluation.questions_struggled_with = evaluation_data.get('questions_struggled_with', [])
+                    
+                    # Store next steps
+                    evaluation.recommended_next_steps = evaluation_data.get('recommended_next_steps', '')
+                    evaluation.topics_to_explore_further = evaluation_data.get('topics_to_explore_further', [])
+                    evaluation.specific_concerns_to_address = evaluation_data.get('specific_concerns_to_address', [])
+                    
+                    # Store metadata
+                    evaluation.evaluation_duration_seconds = evaluation_duration
+                    evaluation.evaluation_model_version = 'gemini-2.0-flash-exp'
+                    evaluation.raw_ai_response = evaluation_result
+                    
+                    # Mark as completed
+                    evaluation.status = 'completed'
+                    evaluation.evaluation_completed_at = end_time
+                    evaluation.save()
+                    
+                    logger.info(f"Successfully completed AI evaluation for recording {evaluation.interview_recording.id}")
+                    logger.info(f"Overall score: {evaluation.overall_score}%, Recommendation: {evaluation.recommendation}")
+                    
+                else:
+                    # No data in successful response
+                    evaluation.status = 'failed'
+                    evaluation.save()
+                    logger.error(f"AI evaluation succeeded but returned no data for recording {evaluation.interview_recording.id}")
+            else:
+                # Evaluation failed
+                evaluation.status = 'failed'
+                evaluation.save()
+                error_msg = evaluation_result.get('error', 'Unknown error')
+                logger.error(f"AI evaluation failed for recording {evaluation.interview_recording.id}: {error_msg}")
+                
+        except Exception as e:
+            # Mark evaluation as failed
+            try:
+                evaluation.status = 'failed'
+                evaluation.save()
+            except:
+                pass
+            logger.error(f"Error processing interview evaluation for recording {evaluation.interview_recording.id}: {e}")
     
     def _generate_transcript_text(self, transcript):
         """Generate a readable transcript text from conversation data"""

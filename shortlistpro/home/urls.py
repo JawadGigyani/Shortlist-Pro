@@ -21,6 +21,13 @@ urlpatterns = [
     # Unified Interview Dashboard (replaces old interviews/ and interview-recordings/)
     path('dashboard/interviews/', views.interview_dashboard, name='interviews'),
     path('dashboard/interviews/delete/', views.delete_interviews, name='delete_interviews'),
+    path('dashboard/interviews/retry-evaluation/<int:recording_id>/', views.retry_evaluation, name='retry_evaluation'),
+    path('dashboard/interviews/retry-interview/<int:recording_id>/', views.retry_interview, name='retry_interview'),
+    path('send-candidate-emails/', views.send_candidate_emails, name='send_candidate_emails'),
+    path('get_profile_address/', views.get_profile_address, name='get_profile_address'),
+    # Legacy evaluations page - replaced by unified dashboard
+    # path('dashboard/interview-evaluations/', views.interview_evaluations, name='interview_evaluations'),
+    path('dashboard/interview-evaluation/<int:evaluation_id>/', views.interview_evaluation_detail, name='interview_evaluation_detail'),
     path('dashboard/interview-session/<int:session_id>/', views.interview_session_detail, name='interview_session_detail'),
     path('dashboard/interview-recording/<int:recording_id>/', views.interview_recording_detail, name='interview_recording_detail'),
     path('dashboard/reports/', views.reports, name='reports'),

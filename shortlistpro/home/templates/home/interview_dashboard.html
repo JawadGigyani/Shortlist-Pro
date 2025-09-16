@@ -1,364 +1,978 @@
 {% extends 'home/dashboard_base.html' %}
 {% load static %}
 
-{% block title %}Voice Interviews - ShortlistPro{% endblock %}
+{% block title %}Interviews & Evaluations - ShortlistPro{% endblock %}
 
 {% block dashboard_title %}
-Voice Interviews
+Interviews & Evaluations
 {% endblock %}
 
 {% block dashboard_content %}
+{% csrf_token %}
 
-<!-- Page Header with Gradient -->
-<div class="bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 rounded-2xl p-8 mb-8 text-white relative overflow-hidden">
-  <div class="absolute inset-0 bg-gradient-to-r from-blue-600/90 via-purple-600/90 to-indigo-600/90"></div>
-  <div class="relative z-10">
-    <div class="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+<!-- Page Header -->
+<div class="mb-6">
+  <div class="bg-white rounded-lg shadow-sm border p-6">
+    <div class="flex justify-between items-center">
       <div>
-        <h1 class="text-3xl font-bold mb-2">Voice Interviews</h1>
-        <p class="text-blue-100">Manage and review AI-powered voice interview recordings</p>
+        <h2 class="text-2xl font-bold text-gray-900">Interview Management</h2>
+        <p class="text-gray-600">Unified dashboard for interviews, transcripts, and AI evaluations</p>
       </div>
-      <div class="flex items-center gap-3">
-        <button onclick="location.reload()" class="bg-white/20 backdrop-blur-sm hover:bg-white/30 text-white px-6 py-3 rounded-xl font-semibold shadow-lg hover:shadow-xl transition-all duration-300 flex items-center gap-2">
-          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+    </div>
+  </div>
+</div>
+
+<!-- Summary Stats -->
+<div class="mb-6">
+  <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+    <div class="bg-white rounded-lg shadow-sm border p-4">
+      <div class="flex items-center">
+        <div class="bg-blue-100 p-3 rounded-lg mr-4">
+          <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
           </svg>
-          Refresh
-        </button>
+        </div>
+        <div>
+          <p class="text-sm font-medium text-gray-600">Total</p>
+          <p class="text-2xl font-bold text-gray-900">{{ stats.total_interviews }}</p>
+        </div>
+      </div>
+    </div>
+    
+    <div class="bg-white rounded-lg shadow-sm border p-4">
+      <div class="flex items-center">
+        <div class="bg-green-100 p-3 rounded-lg mr-4">
+          <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+          </svg>
+        </div>
+        <div>
+          <p class="text-sm font-medium text-gray-600">Completed</p>
+          <p class="text-2xl font-bold text-gray-900">{{ stats.completed }}</p>
+        </div>
+      </div>
+    </div>
+    
+    <div class="bg-white rounded-lg shadow-sm border p-4">
+      <div class="flex items-center">
+        <div class="bg-yellow-100 p-3 rounded-lg mr-4">
+          <svg class="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+          </svg>
+        </div>
+        <div>
+          <p class="text-sm font-medium text-gray-600">Pending</p>
+          <p class="text-2xl font-bold text-gray-900">{{ stats.pending }}</p>
+        </div>
+      </div>
+    </div>
+    
+    <div class="bg-white rounded-lg shadow-sm border p-4">
+      <div class="flex items-center">
+        <div class="bg-red-100 p-3 rounded-lg mr-4">
+          <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </div>
+        <div>
+          <p class="text-sm font-medium text-gray-600">Failed</p>
+          <p class="text-2xl font-bold text-gray-900">{{ stats.failed }}</p>
+        </div>
+      </div>
+    </div>
+    
+    <div class="bg-white rounded-lg shadow-sm border p-4">
+      <div class="flex items-center">
+        <div class="bg-purple-100 p-3 rounded-lg mr-4">
+          <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2-2V7a2 2 0 012-2h2a2 2 0 002 2v2a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 00-2 2h-2a2 2 0 00-2 2v6a2 2 0 01-2 2H9z"></path>
+          </svg>
+        </div>
+        <div>
+          <p class="text-sm font-medium text-gray-600">Evaluated</p>
+          <p class="text-2xl font-bold text-gray-900">{{ stats.evaluated|default:0 }}</p>
+        </div>
       </div>
     </div>
   </div>
-  <div class="absolute -right-8 -top-8 w-32 h-32 bg-white/10 rounded-full"></div>
-  <div class="absolute -left-4 -bottom-4 w-24 h-24 bg-white/5 rounded-full"></div>
 </div>
 
-<!-- Summary Stats -->
-<div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-  <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-    <div class="flex items-center justify-between">
-      <div>
-        <p class="text-sm font-medium text-gray-600">Total Interviews</p>
-        <p class="text-2xl font-bold text-gray-900">{{ stats.total_interviews }}</p>
+<!-- Search, Filtering & Email Actions -->
+<div class="mb-6">
+  <div class="bg-white rounded-lg shadow-sm border p-6">
+    <div class="flex flex-col lg:flex-row gap-6">
+      <!-- Left: Email Actions -->
+      <div class="lg:w-1/3">
+        <div class="flex items-center justify-between">
+          <div>
+            <h3 class="text-lg font-semibold text-gray-900">Bulk Email Actions</h3>
+            <p class="text-sm text-gray-600 mt-1">Send emails to selected candidates</p>
+          </div>
+        </div>
+        <div class="flex items-center space-x-3 mt-4">
+          <button id="selectAllBtn" class="px-4 py-2 text-sm font-medium text-blue-600 border border-blue-300 rounded-lg hover:bg-blue-50">
+            Select All
+          </button>
+          <button id="emailSelectedBtn" disabled class="px-6 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center gap-2">
+            <i class="fas fa-envelope"></i>
+            Send Emails
+          </button>
+        </div>
       </div>
-      <div class="bg-blue-100 p-3 rounded-lg">
-        <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
-        </svg>
-      </div>
-    </div>
-  </div>
-
-  <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-    <div class="flex items-center justify-between">
-      <div>
-        <p class="text-sm font-medium text-gray-600">Complete</p>
-        <p class="text-2xl font-bold text-green-600">{{ stats.completed }}</p>
-      </div>
-      <div class="bg-green-100 p-3 rounded-lg">
-        <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-        </svg>
-      </div>
-    </div>
-  </div>
-
-  <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-    <div class="flex items-center justify-between">
-      <div>
-        <p class="text-sm font-medium text-gray-600">Pending</p>
-        <p class="text-2xl font-bold text-yellow-600">{{ stats.pending }}</p>
-      </div>
-      <div class="bg-yellow-100 p-3 rounded-lg">
-        <svg class="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-        </svg>
-      </div>
-    </div>
-  </div>
-
-  <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-    <div class="flex items-center justify-between">
-      <div>
-        <p class="text-sm font-medium text-gray-600">Failed</p>
-        <p class="text-2xl font-bold text-red-600">{{ stats.failed }}</p>
-      </div>
-      <div class="bg-red-100 p-3 rounded-lg">
-        <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-        </svg>
+      
+      <!-- Right: Search and Filters -->
+      <div class="lg:w-2/3">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">Search & Filters</h3>
+        <form method="get" class="flex flex-col md:flex-row gap-4">
+          <div class="flex-1">
+            <label class="block text-sm font-medium text-gray-700 mb-2">Search Candidate</label>
+            <input type="text" name="search" value="{{ search_query }}" placeholder="Search by candidate name..." class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Status</label>
+            <select name="status" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+              <option value="">All Statuses</option>
+              <option value="complete" {% if current_status == 'complete' %}selected{% endif %}>Complete</option>
+              <option value="pending" {% if current_status == 'pending' %}selected{% endif %}>Pending</option>
+              <option value="failed" {% if current_status == 'failed' %}selected{% endif %}>Failed</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-2">Job Description</label>
+            <select name="jd" class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+              <option value="">All Job Descriptions</option>
+              {% for jd in all_job_descriptions %}
+                <option value="{{ jd.id }}" {% if selected_jd == jd.id|stringformat:'s' %}selected{% endif %}>
+                  {{ jd.title }}
+                </option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="flex gap-2 items-end">
+            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2">
+              <i class="fas fa-search text-xs"></i>
+              Search
+            </button>
+            {% if search_query or current_status or selected_jd %}
+            <a href="{% url 'interviews' %}" class="bg-gray-100 hover:bg-gray-200 text-gray-600 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2">
+              <i class="fas fa-times text-xs"></i>
+              Clear
+            </a>
+            {% endif %}
+          </div>
+        </form>
       </div>
     </div>
   </div>
 </div>
 
-<!-- Search and Filters -->
-<div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
-  <h3 class="text-lg font-semibold text-gray-900 mb-4">Search & Filter</h3>
-  <form method="GET" class="flex flex-col md:flex-row gap-4">
-    <div class="flex-1">
-      <label class="block text-sm font-medium text-gray-700 mb-2">Search Candidate</label>
-      <input type="text" name="search" value="{{ search_query }}" 
-             class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-             placeholder="Enter candidate name...">
-    </div>
-    <div class="md:w-48">
-      <label class="block text-sm font-medium text-gray-700 mb-2">Status</label>
-      <select name="status" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent">
-        <option value="">All Status</option>
-        <option value="complete" {% if current_status == 'complete' %}selected{% endif %}>Complete</option>
-        <option value="pending" {% if current_status == 'pending' %}selected{% endif %}>Pending</option>
-        <option value="failed" {% if current_status == 'failed' %}selected{% endif %}>Failed</option>
-      </select>
-    </div>
-    <div class="flex items-end gap-2">
-      <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-medium transition-colors duration-200 flex items-center gap-2">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-        </svg>
-        Search
-      </button>
-      {% if search_query or current_status %}
-      <a href="{% url 'interviews' %}" class="bg-gray-200 hover:bg-gray-300 text-gray-700 px-6 py-2 rounded-lg font-medium transition-colors duration-200 flex items-center gap-2">
-        Clear
-      </a>
-      {% endif %}
-    </div>
-  </form>
-</div>
-
-<!-- Interviews List -->
-<div class="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-  <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
-    <h3 class="text-lg font-semibold text-gray-900">Voice Interview Records ({{ all_interviews|length }})</h3>
-    <div class="flex items-center gap-2">
-      <button onclick="toggleSelectAll()" id="selectAllBtn" class="text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded-lg transition-colors">
-        Select All
-      </button>
-      <button onclick="deleteSelected()" id="deleteSelectedBtn" class="text-sm bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded-lg transition-colors disabled:bg-gray-300" disabled>
-        Delete Selected
-      </button>
-    </div>
+<!-- Interview List -->
+<div class="bg-white rounded-lg shadow-sm border">
+  <div class="p-6 border-b border-gray-200">
+    <h3 class="text-lg font-semibold text-gray-900">Interview Records</h3>
+    <p class="text-sm text-gray-600 mt-1">Complete interview management with AI evaluations</p>
   </div>
-  
+
   {% if all_interviews %}
-    <form id="deleteForm" method="POST" action="{% url 'delete_interviews' %}">
-      {% csrf_token %}
-      <div class="overflow-x-auto">
-        <table class="min-w-full divide-y divide-gray-200">
-          <thead class="bg-gray-50">
-            <tr>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Select
-              </th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Candidate</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Position</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Files</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-              <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-            </tr>
-          </thead>
-          <tbody class="bg-white divide-y divide-gray-200">
-            {% for interview in all_interviews %}
-            <tr class="hover:bg-gray-50">
-              <td class="px-6 py-4 whitespace-nowrap">
-                <input type="checkbox" name="interview_ids" value="{{ interview.id }}" class="interview-checkbox rounded border-gray-300 text-blue-600 focus:ring-blue-500">
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap">
-                <div class="flex items-center">
-                  <div class="flex-shrink-0 h-10 w-10">
-                    <div class="h-10 w-10 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center">
-                      <span class="text-sm font-medium text-white">
-                        {{ interview.candidate_name|first|upper|default:"?" }}
-                      </span>
-                    </div>
-                  </div>
-                  <div class="ml-4">
-                    <div class="text-sm font-medium text-gray-900">{{ interview.candidate_name }}</div>
-                    <div class="text-sm text-gray-500">{{ interview.candidate_email }}</div>
-                  </div>
+    <div class="divide-y divide-gray-200">
+      {% for interview in all_interviews %}
+      <div class="p-6">
+        <!-- Candidate Header -->
+        <div class="flex items-center justify-between mb-4">
+          <div class="flex items-center space-x-4">
+            <input type="checkbox" class="candidate-checkbox w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500" 
+                   value="{{ interview.id }}" 
+                   data-candidate-name="{{ interview.candidate_name }}"
+                   data-candidate-email="{{ interview.candidate_email }}"
+                   data-job-title="{{ interview.job_title }}"
+                   onchange="toggleEmailButton()">
+            <div class="w-12 h-12 rounded-full bg-blue-500 flex items-center justify-center">
+              <span class="text-lg font-semibold text-white">
+                {{ interview.candidate_name|first|upper|default:"?" }}
+              </span>
+            </div>
+            <div>
+              <h4 class="text-lg font-semibold text-gray-900">{{ interview.candidate_name }}</h4>
+              <p class="text-sm text-blue-600">{{ interview.candidate_email|default:"No email" }}</p>
+              <p class="text-sm text-gray-600">{{ interview.job_title }}</p>
+              <p class="text-xs text-gray-500">{{ interview.created_at|date:"M j, Y g:i A" }}</p>
+            </div>
+          </div>
+
+          <!-- Status Badge -->
+          <div class="flex items-center space-x-3">
+            <!-- Show evaluation score if available -->
+            {% if interview.has_evaluation %}
+              <div class="text-right">
+                <div class="text-sm font-medium text-gray-700">Overall Score</div>
+                <div class="text-lg font-bold {% if interview.evaluation.overall_score >= 7 %}text-green-600{% elif interview.evaluation.overall_score >= 5 %}text-yellow-600{% else %}text-red-600{% endif %}">
+                  {{ interview.evaluation.overall_score|floatformat:1 }}/10
                 </div>
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap">
-                <div class="text-sm font-medium text-gray-900">{{ interview.job_title }}</div>
-                <div class="text-sm text-gray-500">{{ interview.job_department }}</div>
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap">
-                {% if interview.status == 'complete' %}
-                <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">
-                  Complete
+              </div>
+            {% endif %}
+            
+            {% if interview.status == 'complete' %}
+              <span class="inline-flex px-3 py-1 text-sm font-semibold rounded-full bg-green-100 text-green-800">
+                Complete
+              </span>
+            {% elif interview.status == 'pending' %}
+              <span class="inline-flex px-3 py-1 text-sm font-semibold rounded-full bg-yellow-100 text-yellow-800">
+                Pending
+              </span>
+            {% else %}
+              <span class="inline-flex px-3 py-1 text-sm font-semibold rounded-full bg-red-100 text-red-800">
+                Failed
+              </span>
+            {% endif %}
+            
+            <!-- Email Status Tags -->
+            {% if interview.email_sent %}
+              {% if interview.email_type == 'selection' %}
+                <span class="inline-flex px-3 py-1 text-sm font-semibold rounded-full bg-blue-100 text-blue-800 relative group cursor-help">
+                  <i class="fas fa-envelope mr-1"></i>
+                  Selection Sent
+                  <!-- Hover tooltip -->
+                  <div class="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 text-xs text-white bg-gray-900 rounded-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 whitespace-nowrap z-10">
+                    {{ interview.interview_round|title }} Interview Email
+                    <div class="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+                  </div>
                 </span>
-                {% elif interview.status == 'pending' %}
-                <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-yellow-100 text-yellow-800">
-                  Pending
+              {% elif interview.email_type == 'rejection' %}
+                <span class="inline-flex px-3 py-1 text-sm font-semibold rounded-full bg-red-100 text-red-800">
+                  <i class="fas fa-envelope mr-1"></i>
+                  Rejection Sent
                 </span>
-                {% elif interview.status == 'failed' %}
-                <span class="inline-flex px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800">
-                  Failed
-                </span>
-                {% endif %}
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                <div class="flex items-center gap-2">
-                  {% if interview.has_audio %}
-                  <span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800">
-                    <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M18 3a1 1 0 00-1.196-.98l-10 2A1 1 0 006 5v9.114A4.369 4.369 0 005 14c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V7.82l8-1.6v5.894A4.37 4.37 0 0015 12c-1.657 0-3 .895-3 2s1.343 2 3 2 3-.895 3-2V3z"/>
-                    </svg>
-                    Audio
-                  </span>
-                  {% endif %}
-                  {% if interview.has_transcript %}
-                  <span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-800">
-                    <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
-                      <path d="M4 4a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2H4zm0 2h12v8H4V6z"/>
-                    </svg>
-                    Transcript
-                  </span>
-                  {% endif %}
-                </div>
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                {{ interview.created_at|date:"M j, Y g:i A" }}
-              </td>
-              <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                <a href="{% url 'interview_recording_detail' interview.id %}" 
-                   class="text-blue-600 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 px-3 py-1 rounded-lg transition-colors">
-                  View
-                </a>
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+              {% endif %}
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex flex-wrap gap-3">
+          {% if interview.status == 'complete' %}
+            <a href="{% url 'interview_recording_detail' interview.id %}" 
+               class="inline-flex items-center px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-lg">
+              <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
+              </svg>
+              View Interview
+            </a>
+            
+            {% if interview.has_evaluation %}
+              <!-- Show View Evaluation button if evaluation exists -->
+              <a href="{% url 'interview_evaluation_detail' interview.evaluation.id %}" 
+                 class="inline-flex items-center px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded-lg">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2-2V7a2 2 0 012-2h2a2 2 0 002 2v2a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 00-2 2h-2a2 2 0 00-2 2v6a2 2 0 01-2 2H9z"></path>
+                </svg>
+                View Evaluation
+              </a>
+              <!-- Show Retry Evaluation button to allow regenerating evaluation -->
+              <button onclick="retryEvaluation({{ interview.id }})"
+                      class="inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                </svg>
+                Retry Evaluation
+              </button>
+            {% else %}
+              <!-- Show Generate Evaluation button if no evaluation exists -->
+              <button onclick="retryEvaluation({{ interview.id }})"
+                      class="inline-flex items-center px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2-2V7a2 2 0 012-2h2a2 2 0 002 2v2a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 00-2 2h-2a2 2 0 00-2 2v6a2 2 0 01-2 2H9z"></path>
+                </svg>
+                Generate Evaluation
+              </button>
+            {% endif %}
+          {% endif %}
+          
+          {% if interview.status == 'failed' %}
+            <button onclick="retryInterview({{ interview.id }})"
+                    class="inline-flex items-center px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white text-sm font-medium rounded-lg">
+              <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+              </svg>
+              Retry Interview
+            </button>
+          {% endif %}
+        </div>
       </div>
-    </form>
+      {% endfor %}
+    </div>
   {% else %}
     <div class="p-12 text-center">
-      <div class="bg-gray-100 p-4 rounded-full w-16 h-16 mx-auto mb-4 flex items-center justify-center">
-        <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
-        </svg>
-      </div>
-      <h3 class="text-xl font-semibold text-gray-900 mb-2">No Voice Interviews Found</h3>
-      <p class="text-gray-600 mb-4">
-        {% if search_query or current_status %}
-          No interviews match your current search criteria. Try adjusting your filters.
-        {% else %}
-          No voice interviews have been conducted yet. They will appear here once candidates complete their interviews.
-        {% endif %}
-      </p>
-      {% if search_query or current_status %}
-      <a href="{% url 'interviews' %}" class="inline-flex items-center gap-2 text-blue-600 hover:text-blue-700 font-medium">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
-        </svg>
-        Clear Filters
-      </a>
-      {% endif %}
+      <svg class="w-16 h-16 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
+      </svg>
+      <h3 class="text-lg font-medium text-gray-900 mb-2">No interviews found</h3>
+      <p class="text-gray-600">Start by creating job descriptions and matching resumes to generate interviews.</p>
     </div>
   {% endif %}
 </div>
 
-<!-- Delete Confirmation Modal -->
-<div id="deleteModal" class="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm flex items-center justify-center z-50 hidden">
-  <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden">
-    <div class="bg-gradient-to-r from-red-500 to-red-600 p-6">
-      <div class="flex items-center">
-        <div class="flex-shrink-0">
-          <svg class="h-8 w-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
-          </svg>
-        </div>
-        <div class="ml-4">
-          <h3 class="text-lg font-semibold text-white">Confirm Deletion</h3>
-        </div>
-      </div>
-    </div>
-    <div class="p-6">
-      <p class="text-gray-700 mb-6" id="deleteModalMessage">
-        Are you sure you want to delete the selected interview(s)? This action cannot be undone and will permanently remove the records and associated audio/transcript files.
-      </p>
-      <div class="flex justify-end gap-3">
-        <button onclick="closeDeleteModal()" class="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-800 rounded-lg font-medium transition-colors duration-200">
-          Cancel
-        </button>
-        <button onclick="confirmDelete()" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors duration-200">
-          Delete
-        </button>
-      </div>
-    </div>
-  </div>
-</div>
+<!-- CSRF Token for AJAX requests -->
+<input type="hidden" name="csrfmiddlewaretoken" value="{{ csrf_token }}">
 
+<!-- JavaScript for Retry Functions -->
 <script>
-// Select all functionality
+function retryEvaluation(interviewId) {
+    if (confirm('Retry AI evaluation for this interview?')) {
+        const button = document.querySelector(`[onclick="retryEvaluation(${interviewId})"]`);
+        if (button) {
+            button.disabled = true;
+            button.innerHTML = '<svg class="w-4 h-4 mr-2 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg> Retrying...';
+        }
+        
+        fetch(`/dashboard/interviews/retry-evaluation/${interviewId}/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'Content-Type': 'application/json',
+            },
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                location.reload();
+            } else {
+                alert('Failed to retry evaluation: ' + data.message);
+                if (button) {
+                    button.disabled = false;
+                    button.innerHTML = '<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg> Retry Evaluation';
+                }
+            }
+        })
+        .catch(error => {
+            alert('Error: ' + error);
+            if (button) {
+                button.disabled = false;
+                button.innerHTML = '<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg> Retry Evaluation';
+            }
+        });
+    }
+}
+
+function retryInterview(interviewId) {
+    if (confirm('Start a new interview session? This will create a fresh interview for this candidate.')) {
+        const button = document.querySelector(`[onclick="retryInterview(${interviewId})"]`);
+        if (button) {
+            button.disabled = true;
+            button.innerHTML = '<svg class="w-4 h-4 mr-2 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg> Starting...';
+        }
+        
+        fetch(`/dashboard/interviews/retry-interview/${interviewId}/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                'Content-Type': 'application/json',
+            },
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                location.reload();
+            } else {
+                alert('Failed to start new interview: ' + data.message);
+                if (button) {
+                    button.disabled = false;
+                    button.innerHTML = '<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg> Retry Interview';
+                }
+            }
+        })
+        .catch(error => {
+            alert('Error: ' + error);
+            if (button) {
+                button.disabled = false;
+                button.innerHTML = '<svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg> Retry Interview';
+            }
+        });
+    }
+}
+
+// Email functionality
+function toggleEmailButton() {
+    const checkboxes = document.querySelectorAll('.candidate-checkbox:checked');
+    const emailBtn = document.getElementById('emailSelectedBtn');
+    emailBtn.disabled = checkboxes.length === 0;
+}
+
+// Initialize event listeners
 const selectAllBtn = document.getElementById('selectAllBtn');
-const deleteSelectedBtn = document.getElementById('deleteSelectedBtn');
-const interviewCheckboxes = document.querySelectorAll('.interview-checkbox');
-const deleteModal = document.getElementById('deleteModal');
-const deleteModalMessage = document.getElementById('deleteModalMessage');
-
-function toggleSelectAll() {
-  const allChecked = Array.from(interviewCheckboxes).every(cb => cb.checked);
-  const newState = !allChecked;
-  interviewCheckboxes.forEach(checkbox => {
-    checkbox.checked = newState;
-  });
-  updateSelectAllButton();
-  updateDeleteButton();
+if (selectAllBtn) {
+    selectAllBtn.addEventListener('click', function() {
+        const checkboxes = document.querySelectorAll('.candidate-checkbox');
+        const selectAllBtn = this;
+        const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+        
+        checkboxes.forEach(cb => cb.checked = !allChecked);
+        selectAllBtn.textContent = allChecked ? 'Select All' : 'Deselect All';
+        toggleEmailButton();
+    });
 }
 
-function updateSelectAllButton() {
-  const allChecked = Array.from(interviewCheckboxes).every(cb => cb.checked);
-  
-  if (allChecked) {
-    selectAllBtn.textContent = 'Deselect All';
-  } else {
-    selectAllBtn.textContent = 'Select All';
-  }
+const emailSelectedBtn = document.getElementById('emailSelectedBtn');
+if (emailSelectedBtn) {
+    emailSelectedBtn.addEventListener('click', function() {
+        const checkboxes = document.querySelectorAll('.candidate-checkbox:checked');
+        if (checkboxes.length === 0) return;
+        
+        // Show email type modal
+        showEmailModal(checkboxes);
+    });
 }
 
-function updateDeleteButton() {
-  const checkedCount = Array.from(interviewCheckboxes).filter(cb => cb.checked).length;
-  deleteSelectedBtn.disabled = checkedCount === 0;
-  deleteSelectedBtn.textContent = checkedCount > 0 ? `Delete Selected (${checkedCount})` : 'Delete Selected';
-}
-
-// Update on individual checkbox changes
-interviewCheckboxes.forEach(checkbox => {
-  checkbox.addEventListener('change', function() {
-    updateSelectAllButton();
-    updateDeleteButton();
-  });
+// Also bind to individual checkboxes
+document.querySelectorAll('.candidate-checkbox').forEach(checkbox => {
+    checkbox.addEventListener('change', toggleEmailButton);
 });
 
-// Delete selected interviews
-function deleteSelected() {
-  const checkedBoxes = Array.from(interviewCheckboxes).filter(cb => cb.checked);
-  if (checkedBoxes.length === 0) {
-    alert('Please select interviews to delete.');
-    return;
-  }
-  
-  deleteModalMessage.textContent = `Are you sure you want to delete ${checkedBoxes.length} selected interview(s)? This action cannot be undone and will permanently remove the records and associated audio/transcript files.`;
-  deleteModal.classList.remove('hidden');
+// Initialize button state
+toggleEmailButton();
+
+function showEmailModal(selectedCheckboxes) {
+    const candidateCount = selectedCheckboxes.length;
+    const candidateNames = Array.from(selectedCheckboxes).map(cb => cb.dataset.candidateName).join(', ');
+    const displayNames = candidateNames.length > 50 ? candidateNames.substring(0, 50) + '...' : candidateNames;
+    
+    // Create modal HTML with better styling
+    const modalHTML = `
+        <div id="emailModal" class="fixed inset-0 bg-gray-900 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center">
+            <div class="relative bg-white rounded-xl shadow-2xl w-96 max-w-md mx-4">
+                <!-- Header -->
+                <div class="bg-gradient-to-r from-blue-600 to-purple-600 p-6 rounded-t-xl">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="text-xl font-semibold text-white">Send Email to Candidates</h3>
+                            <p class="text-blue-100 text-sm mt-1">${candidateCount} candidate${candidateCount > 1 ? 's' : ''} selected</p>
+                        </div>
+                        <button onclick="closeModal()" class="text-white hover:text-gray-200 p-1">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Content -->
+                <div class="p-6">
+                    <div class="mb-4">
+                        <p class="text-sm text-gray-600 mb-4">
+                            <strong>Selected:</strong> ${displayNames}
+                        </p>
+                    </div>
+                    
+                    <!-- Email Type Selection -->
+                    <div class="space-y-4">
+                        <div class="bg-red-50 border border-red-200 rounded-lg p-4 hover:bg-red-100 transition-colors cursor-pointer" onclick="handleEmailAction('rejection')">
+                            <div class="flex items-center">
+                                <div class="bg-red-500 rounded-full p-2 mr-3">
+                                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                    </svg>
+                                </div>
+                                <div>
+                                    <h4 class="font-medium text-red-800">Send Rejection Email</h4>
+                                    <p class="text-sm text-red-600">Notify candidates they were not selected</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-green-50 border border-green-200 rounded-lg p-4 hover:bg-green-100 transition-colors cursor-pointer" onclick="showInterviewRoundModal()">
+                            <div class="flex items-center">
+                                <div class="bg-green-500 rounded-full p-2 mr-3">
+                                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4"></path>
+                                    </svg>
+                                </div>
+                                <div>
+                                    <h4 class="font-medium text-green-800">Send Selection Email</h4>
+                                    <p class="text-sm text-green-600">Invite candidates for next interview round</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
 }
 
-function closeDeleteModal() {
-  deleteModal.classList.add('hidden');
+function showInterviewRoundModal() {
+    closeModal();
+    
+    const modalHTML = `
+        <div id="interviewRoundModal" class="fixed inset-0 bg-gray-900 bg-opacity-50 overflow-y-auto h-full w-full z-50 flex items-center justify-center">
+            <div class="relative bg-white rounded-xl shadow-2xl w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto">
+                <!-- Header -->
+                <div class="bg-gradient-to-r from-green-600 to-blue-600 p-6 rounded-t-xl">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <h3 class="text-xl font-semibold text-white">Schedule Interview</h3>
+                            <p class="text-green-100 text-sm mt-1">Configure interview details and send invitations</p>
+                        </div>
+                        <button onclick="closeModal()" class="text-white hover:text-gray-200 p-1">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Content -->
+                <div class="p-6">
+                    <form onsubmit="handleInterviewRoundSubmission(event)">
+                        <!-- Interview Round Selection -->
+                        <div class="mb-6">
+                            <label for="interviewRoundSelect" class="block text-sm font-medium text-gray-700 mb-2">
+                                Interview Round
+                            </label>
+                            <select id="interviewRoundSelect" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white text-gray-900" required>
+                                <option value="">Select interview round...</option>
+                                <option value="technical">Technical Interview</option>
+                                <option value="behavioral">Behavioral Interview</option>
+                                <option value="final">Final Interview</option>
+                            </select>
+                        </div>
+                        
+                        <!-- Interview Type Selection -->
+                        <div class="mb-6">
+                            <label class="block text-sm font-medium text-gray-700 mb-3">Interview Type</label>
+                            <div class="grid grid-cols-2 gap-4">
+                                <label class="relative cursor-pointer">
+                                    <input type="radio" name="interviewType" value="onsite" class="sr-only peer" required>
+                                    <div class="p-4 border-2 border-gray-200 rounded-lg peer-checked:border-blue-500 peer-checked:bg-blue-50 hover:bg-gray-50 transition-colors">
+                                        <div class="flex items-center">
+                                            <svg class="w-5 h-5 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
+                                            </svg>
+                                            <div>
+                                                <div class="font-medium text-gray-900">Onsite</div>
+                                                <div class="text-sm text-gray-500">At office location</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </label>
+                                <label class="relative cursor-pointer">
+                                    <input type="radio" name="interviewType" value="online" class="sr-only peer" required>
+                                    <div class="p-4 border-2 border-gray-200 rounded-lg peer-checked:border-blue-500 peer-checked:bg-blue-50 hover:bg-gray-50 transition-colors">
+                                        <div class="flex items-center">
+                                            <svg class="w-5 h-5 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                                            </svg>
+                                            <div>
+                                                <div class="font-medium text-gray-900">Online</div>
+                                                <div class="text-sm text-gray-500">Zoom meeting</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <!-- Date and Time Selection -->
+                        <div class="mb-6">
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label for="interviewDate" class="block text-sm font-medium text-gray-700 mb-2">
+                                        Interview Date
+                                    </label>
+                                    <input type="date" id="interviewDate" name="interviewDate" 
+                                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+                                           required min="${new Date().toISOString().split('T')[0]}">
+                                </div>
+                                <div>
+                                    <label for="interviewTime" class="block text-sm font-medium text-gray-700 mb-2">
+                                        Interview Time
+                                    </label>
+                                    <input type="time" id="interviewTime" name="interviewTime" 
+                                           class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" 
+                                           required>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Location/Address Section -->
+                        <div id="locationSection" class="mb-6 hidden">
+                            <label for="interviewLocation" class="block text-sm font-medium text-gray-700 mb-2">
+                                Interview Location
+                            </label>
+                            <div class="space-y-3">
+                                <div class="flex items-center space-x-2">
+                                    <input type="radio" id="useDefaultAddress" name="locationChoice" value="default" class="text-blue-600">
+                                    <label for="useDefaultAddress" class="text-sm text-gray-700">Use default office address</label>
+                                </div>
+                                <div id="defaultAddressDisplay" class="ml-6 p-3 bg-gray-50 border border-gray-200 rounded-lg text-sm text-gray-600 hidden">
+                                    <!-- Will be populated with user's default address -->
+                                </div>
+                                <div class="flex items-center space-x-2">
+                                    <input type="radio" id="useCustomAddress" name="locationChoice" value="custom" class="text-blue-600">
+                                    <label for="useCustomAddress" class="text-sm text-gray-700">Use custom address</label>
+                                </div>
+                                <textarea id="customAddress" name="customAddress" rows="3" 
+                                          class="ml-6 w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent hidden"
+                                          placeholder="Enter interview location address..."></textarea>
+                            </div>
+                        </div>
+                        
+                        <!-- Zoom Meeting Info (will be shown for online interviews) -->
+                        <div id="zoomInfo" class="mb-6 hidden">
+                            <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                <div class="flex items-center mb-2">
+                                    <svg class="w-5 h-5 text-blue-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                                    </svg>
+                                    <strong class="text-blue-800">Zoom Meeting</strong>
+                                </div>
+                                <p class="text-blue-700 text-sm">A unique Zoom meeting link will be automatically created and included in the email invitation.</p>
+                                <div class="mt-2 text-xs text-blue-600">
+                                    <ul class="list-disc list-inside space-y-1">
+                                        <li>Meeting duration: 30 minutes</li>
+                                        <li>Automatic cloud recording enabled</li>
+                                        <li>Candidates can join before host</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Interview Round Descriptions -->
+                        <div class="mb-6 text-sm text-gray-600 space-y-2">
+                            <div id="technical-desc" class="hidden">
+                                <div class="bg-purple-50 border border-purple-200 rounded-lg p-3">
+                                    <div class="flex items-center mb-2">
+                                        <svg class="w-4 h-4 text-purple-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path>
+                                        </svg>
+                                        <strong class="text-purple-800">Technical Interview</strong>
+                                    </div>
+                                    <p class="text-purple-700">Focus on problem-solving, coding skills, and technical knowledge.</p>
+                                </div>
+                            </div>
+                            <div id="behavioral-desc" class="hidden">
+                                <div class="bg-orange-50 border border-orange-200 rounded-lg p-3">
+                                    <div class="flex items-center mb-2">
+                                        <svg class="w-4 h-4 text-orange-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                                        </svg>
+                                        <strong class="text-orange-800">Behavioral Interview</strong>
+                                    </div>
+                                    <p class="text-orange-700">Assess cultural fit, teamwork, and communication skills.</p>
+                                </div>
+                            </div>
+                            <div id="final-desc" class="hidden">
+                                <div class="bg-green-50 border border-green-200 rounded-lg p-3">
+                                    <div class="flex items-center mb-2">
+                                        <svg class="w-4 h-4 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                        </svg>
+                                        <strong class="text-green-800">Final Interview</strong>
+                                    </div>
+                                    <p class="text-green-700">Leadership discussion, role expectations, and compensation.</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Actions -->
+                        <div class="flex gap-3">
+                            <button type="button" onclick="closeModal()" class="flex-1 px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 font-medium">
+                                Cancel
+                            </button>
+                            <button type="submit" class="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium">
+                                Send Interview Invitations
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    
+    // Add event listeners
+    setupInterviewModalEventListeners();
 }
 
-function confirmDelete() {
-  document.getElementById('deleteForm').submit();
+function setupInterviewModalEventListeners() {
+    // Interview round selection
+    document.getElementById('interviewRoundSelect').addEventListener('change', function() {
+        // Hide all descriptions
+        document.querySelectorAll('[id$="-desc"]').forEach(desc => desc.classList.add('hidden'));
+        
+        // Show selected description
+        if (this.value) {
+            const selectedDesc = document.getElementById(this.value + '-desc');
+            if (selectedDesc) selectedDesc.classList.remove('hidden');
+        }
+    });
+    
+    // Interview type radio buttons
+    document.querySelectorAll('input[name="interviewType"]').forEach(radio => {
+        radio.addEventListener('change', function() {
+            const locationSection = document.getElementById('locationSection');
+            const zoomInfo = document.getElementById('zoomInfo');
+            
+            if (this.value === 'onsite') {
+                locationSection.classList.remove('hidden');
+                zoomInfo.classList.add('hidden');
+                loadDefaultAddress();
+            } else if (this.value === 'online') {
+                locationSection.classList.add('hidden');
+                zoomInfo.classList.remove('hidden');
+            }
+        });
+    });
+    
+    // Location choice radio buttons
+    document.querySelectorAll('input[name="locationChoice"]').forEach(radio => {
+        radio.addEventListener('change', function() {
+            const defaultDisplay = document.getElementById('defaultAddressDisplay');
+            const customAddress = document.getElementById('customAddress');
+            
+            if (this.value === 'default') {
+                defaultDisplay.classList.remove('hidden');
+                customAddress.classList.add('hidden');
+                customAddress.removeAttribute('required');
+            } else if (this.value === 'custom') {
+                defaultDisplay.classList.add('hidden');
+                customAddress.classList.remove('hidden');
+                customAddress.setAttribute('required', 'required');
+            }
+        });
+    });
 }
 
-// Close modal when clicking outside
-deleteModal.addEventListener('click', function(e) {
-  if (e.target === deleteModal) {
-    closeDeleteModal();
-  }
-});
+function loadDefaultAddress() {
+    // Load user's default office address from profile
+    fetch('/get_profile_address/', {
+        method: 'GET',
+        headers: {
+            'X-CSRFToken': getCookie('csrftoken'),
+            'Content-Type': 'application/json',
+        },
+    })
+    .then(response => response.json())
+    .then(data => {
+        const defaultDisplay = document.getElementById('defaultAddressDisplay');
+        if (data.office_address) {
+            defaultDisplay.innerHTML = data.office_address.replace(/\n/g, '<br>');
+            document.getElementById('useDefaultAddress').removeAttribute('disabled');
+        } else {
+            defaultDisplay.innerHTML = '<em class="text-red-500">No default office address configured. Please set one in your profile or use custom address.</em>';
+            document.getElementById('useDefaultAddress').setAttribute('disabled', 'disabled');
+            document.getElementById('useCustomAddress').checked = true;
+            document.getElementById('customAddress').classList.remove('hidden');
+            document.getElementById('customAddress').setAttribute('required', 'required');
+        }
+    })
+    .catch(error => {
+        console.error('Error loading default address:', error);
+        const defaultDisplay = document.getElementById('defaultAddressDisplay');
+        defaultDisplay.innerHTML = '<em class="text-red-500">Error loading default address. Please use custom address.</em>';
+    });
+}
+
+function handleInterviewRoundSubmission(event) {
+    event.preventDefault();
+    
+    // Collect form data
+    const selectedRound = document.getElementById('interviewRoundSelect').value;
+    const interviewType = document.querySelector('input[name="interviewType"]:checked')?.value;
+    const interviewDate = document.getElementById('interviewDate').value;
+    const interviewTime = document.getElementById('interviewTime').value;
+    
+    // Validate required fields
+    if (!selectedRound) {
+        showNotification('error', 'Selection Required', 'Please select an interview round.');
+        return;
+    }
+    
+    if (!interviewType) {
+        showNotification('error', 'Selection Required', 'Please select interview type (onsite or online).');
+        return;
+    }
+    
+    if (!interviewDate || !interviewTime) {
+        showNotification('error', 'Date/Time Required', 'Please select interview date and time.');
+        return;
+    }
+    
+    // Validate location for onsite interviews
+    let interviewLocation = '';
+    if (interviewType === 'onsite') {
+        const locationChoice = document.querySelector('input[name="locationChoice"]:checked')?.value;
+        if (!locationChoice) {
+            showNotification('error', 'Location Required', 'Please select interview location.');
+            return;
+        }
+        
+        if (locationChoice === 'custom') {
+            interviewLocation = document.getElementById('customAddress').value.trim();
+            if (!interviewLocation) {
+                showNotification('error', 'Address Required', 'Please enter the interview address.');
+                return;
+            }
+        } else if (locationChoice === 'default') {
+            // We'll get this from the server side
+            interviewLocation = 'default_office_address';
+        }
+    }
+    
+    // Combine date and time into ISO format
+    const combinedDateTime = new Date(`${interviewDate}T${interviewTime}`).toISOString();
+    
+    // Call the email action with additional data
+    handleEmailAction('selection', selectedRound, {
+        interviewType: interviewType,
+        interviewDateTime: combinedDateTime,
+        interviewLocation: interviewLocation
+    });
+}
+
+function handleEmailAction(emailType, interviewRound = 'initial', interviewData = {}) {
+    const checkboxes = document.querySelectorAll('.candidate-checkbox:checked');
+    const candidateIds = Array.from(checkboxes).map(cb => parseInt(cb.value));
+    
+    if (candidateIds.length === 0) {
+        showNotification('error', 'No Selection', 'Please select at least one candidate');
+        return;
+    }
+    
+    // Show loading
+    closeModal();
+    const loadingModal = `
+        <div id="loadingModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+            <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+                <div class="mt-3 text-center">
+                    <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
+                    <h3 class="text-lg font-medium text-gray-900 mt-4">Processing Interview Invitations...</h3>
+                    <p class="text-sm text-gray-500 mt-2">
+                        ${interviewData.interviewType === 'online' ? 
+                          'Creating Zoom meetings and sending emails...' : 
+                          'Sending interview invitations...'}
+                    </p>
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', loadingModal);
+    
+    // Prepare request data
+    const requestData = {
+        candidate_ids: candidateIds,
+        email_type: emailType,
+        interview_round: interviewRound,
+        ...interviewData
+    };
+    
+    // Send email request
+    fetch('/send-candidate-emails/', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify(requestData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        closeModal();
+        if (data.success) {
+            const successMessage = interviewData.interviewType === 'online' ? 
+                `${data.success_count} Zoom meetings created and emails sent!` :
+                `${data.success_count} interview invitations sent!`;
+                
+            showNotification('success', 'Success!', successMessage);
+            
+            // Clear selections and refresh page to show updated email status
+            document.querySelectorAll('.candidate-checkbox').forEach(cb => cb.checked = false);
+            toggleEmailButton();
+            document.getElementById('selectAllBtn').textContent = 'Select All';
+            
+            // Refresh page to show updated data
+            setTimeout(() => {
+                window.location.reload();
+            }, 2000);
+        } else {
+            showNotification('error', 'Failed to send emails', data.error || 'Unknown error occurred');
+        }
+    })
+    .catch(error => {
+        closeModal();
+        console.error('Error:', error);
+        showNotification('error', 'Network Error', 'Failed to send request. Please try again.');
+    });
+}
+
+function closeModal() {
+    const modals = ['emailModal', 'interviewRoundModal', 'loadingModal'];
+    modals.forEach(modalId => {
+        const modal = document.getElementById(modalId);
+        if (modal) modal.remove();
+    });
+}
+
+function showNotification(type, title, message) {
+    const bgColor = type === 'success' ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200';
+    const iconColor = type === 'success' ? 'text-green-500' : 'text-red-500';
+    const titleColor = type === 'success' ? 'text-green-800' : 'text-red-800';
+    const messageColor = type === 'success' ? 'text-green-700' : 'text-red-700';
+    const icon = type === 'success' ? 
+        '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4"></path>' :
+        '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>';
+    
+    const notificationHTML = `
+        <div id="customNotification" class="fixed top-4 right-4 max-w-sm w-full ${bgColor} border rounded-lg shadow-lg z-50 transform transition-all duration-300 translate-x-full">
+            <div class="p-4">
+                <div class="flex items-start">
+                    <div class="flex-shrink-0">
+                        <svg class="h-6 w-6 ${iconColor}" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            ${icon}
+                        </svg>
+                    </div>
+                    <div class="ml-3 w-0 flex-1">
+                        <p class="text-sm font-medium ${titleColor}">${title}</p>
+                        <p class="mt-1 text-sm ${messageColor}">${message}</p>
+                    </div>
+                    <div class="ml-4 flex-shrink-0 flex">
+                        <button onclick="closeNotification()" class="inline-flex ${titleColor} hover:opacity-75">
+                            <svg class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', notificationHTML);
+    
+    // Animate in
+    setTimeout(() => {
+        const notification = document.getElementById('customNotification');
+        if (notification) {
+            notification.classList.remove('translate-x-full');
+        }
+    }, 100);
+    
+    // Auto dismiss after 5 seconds
+    setTimeout(() => {
+        closeNotification();
+    }, 5000);
+}
+
+function closeNotification() {
+    const notification = document.getElementById('customNotification');
+    if (notification) {
+        notification.classList.add('translate-x-full');
+        setTimeout(() => notification.remove(), 300);
+    }
+}
 </script>
 
 {% endblock %}

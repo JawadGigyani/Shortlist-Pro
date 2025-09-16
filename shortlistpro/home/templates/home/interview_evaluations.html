@@ -1,0 +1,347 @@
+{% extends 'home/dashboard_base.html' %}
+{% load static %}
+
+{% block dashboard_title %}Interview Evaluations{% endblock %}
+
+{% block dashboard_content %}
+<div class="space-y-6">
+  <!-- Page Header -->
+  <div class="flex flex-col lg:flex-row lg:items-center justify-between space-y-4 lg:space-y-0">
+    <div>
+      <h2 class="text-3xl font-bold text-gray-900">Interview Evaluations</h2>
+      <p class="text-gray-600 mt-1">AI-powered evaluation of candidate interviews with detailed scoring and recommendations</p>
+    </div>
+    <div class="flex items-center space-x-3">
+      <button class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500">
+        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707" />
+        </svg>
+        Refresh
+      </button>
+      <select class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+        <option>All Evaluations</option>
+        <option>Recommended</option>
+        <option>Not Recommended</option>
+        <option>Pending Review</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Statistics Cards -->
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+    <!-- Total Evaluations -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-sm font-medium text-gray-600">Total Evaluations</p>
+          <p class="text-3xl font-bold text-gray-900 mt-2">{{ total_evaluations }}</p>
+        </div>
+        <div class="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+          <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+          </svg>
+        </div>
+      </div>
+      <div class="flex items-center mt-4 text-sm">
+        <span class="text-gray-500">{{ completed_evaluations }} completed</span>
+      </div>
+    </div>
+
+    <!-- Recommended Candidates -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-sm font-medium text-gray-600">Recommended</p>
+          <p class="text-3xl font-bold text-green-600 mt-2">{{ strong_hire_count|add:hire_count }}</p>
+        </div>
+        <div class="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
+          <svg class="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+      </div>
+      <div class="flex items-center mt-4 text-sm">
+        <span class="text-green-600 font-medium">
+          {% widthratio strong_hire_count|add:hire_count completed_evaluations 100 %}%
+        </span>
+        <span class="text-gray-500 ml-1">of evaluated</span>
+      </div>
+    </div>
+
+    <!-- Not Recommended -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-sm font-medium text-gray-600">Not Recommended</p>
+          <p class="text-3xl font-bold text-red-600 mt-2">{{ no_hire_count }}</p>
+        </div>
+        <div class="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center">
+          <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+      </div>
+      <div class="flex items-center mt-4 text-sm">
+        <span class="text-red-600 font-medium">
+          {% widthratio no_hire_count completed_evaluations 100 %}%
+        </span>
+        <span class="text-gray-500 ml-1">of evaluated</span>
+      </div>
+    </div>
+
+    <!-- Average Score -->
+    <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 hover:shadow-md transition-shadow">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-sm font-medium text-gray-600">Average Score</p>
+          <p class="text-3xl font-bold text-purple-600 mt-2">{{ avg_overall_score }}</p>
+        </div>
+        <div class="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
+          <svg class="w-6 h-6 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+          </svg>
+        </div>
+      </div>
+      <div class="flex items-center mt-4 text-sm">
+        <span class="text-gray-500">Out of 10.0</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Evaluation List -->
+  <div class="bg-white rounded-xl shadow-sm border border-gray-200">
+    <div class="px-6 py-4 border-b border-gray-200">
+      <div class="flex items-center justify-between">
+        <h3 class="text-lg font-semibold text-gray-900">Recent Evaluations</h3>
+        <div class="flex items-center space-x-2">
+          <input 
+            type="search" 
+            placeholder="Search candidates..." 
+            class="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+        </div>
+      </div>
+    </div>
+
+    <div class="overflow-x-auto">
+      <table class="w-full">
+        <thead class="bg-gray-50 border-b border-gray-200">
+          <tr>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Candidate</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Position</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Overall Score</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Recommendation</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Confidence</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-200">
+          {% for evaluation in evaluations %}
+          <tr class="hover:bg-gray-50 transition-colors">
+            <td class="px-6 py-4 whitespace-nowrap">
+              <div class="flex items-center">
+                <div class="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-600 rounded-full flex items-center justify-center flex-shrink-0">
+                  <span class="text-white font-semibold text-sm">
+                    {{ evaluation.interview_recording.candidate_name|slice:":1"|upper }}
+                  </span>
+                </div>
+                <div class="ml-4">
+                  <div class="text-sm font-medium text-gray-900">
+                    {{ evaluation.interview_recording.candidate_name }}
+                  </div>
+                  <div class="text-xs text-gray-500">
+                    {{ evaluation.interview_recording.candidate_email }}
+                  </div>
+                </div>
+              </div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+              <div class="text-sm text-gray-900">{{ evaluation.interview_recording.job_position }}</div>
+              <div class="text-xs text-gray-500">{{ evaluation.interview_recording.company_name }}</div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+              <div class="flex items-center">
+                <div class="text-lg font-bold 
+                  {% if evaluation.overall_score >= 8 %}text-green-600
+                  {% elif evaluation.overall_score >= 6 %}text-yellow-600
+                  {% else %}text-red-600{% endif %}">
+                  {{ evaluation.overall_score|floatformat:1 }}
+                </div>
+                <div class="text-xs text-gray-500 ml-1">/10</div>
+              </div>
+              <!-- Score breakdown mini bars -->
+              <div class="flex space-x-1 mt-1">
+                <div class="w-1 h-3 bg-blue-200 rounded-full overflow-hidden">
+                  <div class="bg-blue-500 h-full" style="height: {% widthratio evaluation.technical_knowledge_score 1 10 %}%"></div>
+                </div>
+                <div class="w-1 h-3 bg-green-200 rounded-full overflow-hidden">
+                  <div class="bg-green-500 h-full" style="height: {% widthratio evaluation.communication_score 1 10 %}%"></div>
+                </div>
+                <div class="w-1 h-3 bg-purple-200 rounded-full overflow-hidden">
+                  <div class="bg-purple-500 h-full" style="height: {% widthratio evaluation.problem_solving_score 1 10 %}%"></div>
+                </div>
+                <div class="w-1 h-3 bg-yellow-200 rounded-full overflow-hidden">
+                  <div class="bg-yellow-500 h-full" style="height: {% widthratio evaluation.cultural_fit_score 1 10 %}%"></div>
+                </div>
+                <div class="w-1 h-3 bg-indigo-200 rounded-full overflow-hidden">
+                  <div class="bg-indigo-500 h-full" style="height: {% widthratio evaluation.enthusiasm_score 1 10 %}%"></div>
+                </div>
+              </div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+              <span class="inline-flex items-center px-2.5 py-1.5 rounded-lg text-xs font-medium
+                {% if evaluation.recommendation == 'strong_hire' %}bg-green-100 text-green-800
+                {% elif evaluation.recommendation == 'hire' %}bg-blue-100 text-blue-800
+                {% elif evaluation.recommendation == 'maybe' %}bg-yellow-100 text-yellow-800
+                {% elif evaluation.recommendation == 'no_hire' %}bg-red-100 text-red-800
+                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                {% if evaluation.recommendation == 'strong_hire' %}
+                  <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />
+                  </svg>
+                  Strong Hire
+                {% elif evaluation.recommendation == 'hire' %}
+                  <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd" />
+                  </svg>
+                  Hire
+                {% elif evaluation.recommendation == 'maybe' %}
+                  <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                  </svg>
+                  Maybe
+                {% elif evaluation.recommendation == 'no_hire' %}
+                  <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                  </svg>
+                  No Hire
+                {% else %}
+                  <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd" />
+                  </svg>
+                  Insufficient Data
+                {% endif %}
+              </span>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+              <div class="flex items-center">
+                <div class="text-sm font-medium text-gray-900">{{ evaluation.confidence_level|title }}</div>
+                <div class="ml-2">
+                  {% if evaluation.confidence_level == 'high' %}
+                    <div class="w-12 bg-gray-200 rounded-full h-2">
+                      <div class="bg-green-500 h-2 rounded-full" style="width: 85%"></div>
+                    </div>
+                  {% elif evaluation.confidence_level == 'medium' %}
+                    <div class="w-12 bg-gray-200 rounded-full h-2">
+                      <div class="bg-yellow-500 h-2 rounded-full" style="width: 60%"></div>
+                    </div>
+                  {% else %}
+                    <div class="w-12 bg-gray-200 rounded-full h-2">
+                      <div class="bg-red-500 h-2 rounded-full" style="width: 35%"></div>
+                    </div>
+                  {% endif %}
+                </div>
+              </div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+              {{ evaluation.created_at|date:"M j, Y" }}
+              <div class="text-xs text-gray-400">{{ evaluation.created_at|time:"g:i A" }}</div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
+              <a href="{% url 'interview_evaluation_detail' evaluation.id %}" class="text-blue-600 hover:text-blue-900 transition-colors">
+                View Details
+              </a>
+              <a href="{% url 'interview_recording_detail' evaluation.interview_recording.id %}" class="text-gray-600 hover:text-gray-900 transition-colors">
+                Interview
+              </a>
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="7" class="px-6 py-12 text-center">
+              <div class="flex flex-col items-center space-y-3">
+                <div class="w-16 h-16 bg-gray-200 rounded-full flex items-center justify-center">
+                  <svg class="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                  </svg>
+                </div>
+                <div class="text-center">
+                  <h3 class="text-lg font-medium text-gray-900 mb-2">No evaluations found</h3>
+                  <p class="text-gray-500 max-w-md">
+                    Interview evaluations will appear here once candidates complete their interviews and the AI evaluation process is finished.
+                  </p>
+                </div>
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% if evaluations.has_other_pages %}
+    <!-- Pagination -->
+    <div class="px-6 py-4 border-t border-gray-200">
+      <div class="flex items-center justify-between">
+        <div class="text-sm text-gray-700">
+          Showing {{ evaluations.start_index }} to {{ evaluations.end_index }} of {{ evaluations.paginator.count }} results
+        </div>
+        <div class="flex items-center space-x-2">
+          {% if evaluations.has_previous %}
+            <a href="?page={{ evaluations.previous_page_number }}" class="px-3 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+              Previous
+            </a>
+          {% endif %}
+          
+          {% for page_num in evaluations.paginator.page_range %}
+            {% if page_num == evaluations.number %}
+              <span class="px-3 py-2 text-sm font-medium text-white bg-blue-600 border border-blue-600 rounded-lg">
+                {{ page_num }}
+              </span>
+            {% else %}
+              <a href="?page={{ page_num }}" class="px-3 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+                {{ page_num }}
+              </a>
+            {% endif %}
+          {% endfor %}
+          
+          {% if evaluations.has_next %}
+            <a href="?page={{ evaluations.next_page_number }}" class="px-3 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50">
+              Next
+            </a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+
+<script>
+// Add any additional JavaScript for the evaluation dashboard here
+document.addEventListener('DOMContentLoaded', function() {
+  // Search functionality
+  const searchInput = document.querySelector('input[type="search"]');
+  const tableRows = document.querySelectorAll('tbody tr');
+  
+  if (searchInput) {
+    searchInput.addEventListener('input', function(e) {
+      const searchTerm = e.target.value.toLowerCase();
+      
+      tableRows.forEach(row => {
+        const candidateName = row.querySelector('td:first-child .text-sm.font-medium')?.textContent.toLowerCase() || '';
+        const candidateEmail = row.querySelector('td:first-child .text-xs')?.textContent.toLowerCase() || '';
+        const position = row.querySelector('td:nth-child(2) .text-sm')?.textContent.toLowerCase() || '';
+        
+        if (candidateName.includes(searchTerm) || candidateEmail.includes(searchTerm) || position.includes(searchTerm)) {
+          row.style.display = '';
+        } else {
+          row.style.display = 'none';
+        }
+      });
+    });
+  }
+});
+</script>
+{% endblock %}
