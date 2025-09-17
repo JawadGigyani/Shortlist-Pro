@@ -408,6 +408,21 @@ class InterviewRecording(models.Model):
         return "Unknown Candidate"
     
     @property
+    def candidate_email(self):
+        """Get candidate email from related matching result"""
+        if self.matching_result and self.matching_result.resume:
+            return self.matching_result.resume.email
+        return ""
+    
+    def get_candidate_name(self):
+        """Method version of candidate_name property for compatibility"""
+        return self.candidate_name
+    
+    def get_candidate_email(self):
+        """Method version of candidate_email property for compatibility"""
+        return self.candidate_email
+    
+    @property
     def job_title(self):
         """Get job title from related matching result"""
         if self.matching_result and self.matching_result.job_description:
@@ -667,3 +682,208 @@ class InterviewEvaluation(models.Model):
             self.overall_score = self.calculate_overall_score()
         
         super().save(*args, **kwargs)
+
+
+# --- Interview Pipeline Models ---
+class InterviewStage(models.Model):
+    """Model to track additional interview stages beyond initial AI interview"""
+    
+    STAGE_CHOICES = [
+        ('technical', 'Technical Interview'),
+        ('behavioral', 'Behavioral Interview'),
+        ('final', 'Final Interview'),
+        ('panel', 'Panel Interview'),
+        ('cultural_fit', 'Cultural Fit Interview'),
+    ]
+    
+    RECOMMENDATION_CHOICES = [
+        ('reject', 'Reject'),
+        ('on_hold', 'On Hold'),
+        ('proceed', 'Proceed to Next Stage'),
+        ('hire', 'Recommend for Hire'),
+    ]
+    
+    # Link to original interview recording
+    interview_recording = models.ForeignKey(
+        'InterviewRecording', 
+        on_delete=models.CASCADE, 
+        related_name='additional_stages'
+    )
+    
+    # Stage information
+    stage_type = models.CharField(max_length=20, choices=STAGE_CHOICES)
+    stage_order = models.IntegerField(default=1, help_text="Order of this stage in pipeline")
+    
+    # Interview details
+    interviewer = models.ForeignKey(User, on_delete=models.CASCADE, help_text="HR/Manager who conducted interview")
+    interview_date = models.DateTimeField()
+    duration_minutes = models.PositiveIntegerField(default=0, help_text="Interview duration in minutes")
+    
+    # Evaluation
+    overall_score = models.FloatField(default=0.0, help_text="Score out of 10")
+    technical_skills_score = models.FloatField(default=0.0, help_text="Technical competency (0-10)")
+    communication_score = models.FloatField(default=0.0, help_text="Communication skills (0-10)")
+    cultural_fit_score = models.FloatField(default=0.0, help_text="Cultural fit (0-10)")
+    problem_solving_score = models.FloatField(default=0.0, help_text="Problem solving ability (0-10)")
+    
+    # Qualitative feedback
+    strengths = models.TextField(blank=True, help_text="Candidate's key strengths")
+    weaknesses = models.TextField(blank=True, help_text="Areas for improvement")
+    notes = models.TextField(blank=True, help_text="Additional interview notes")
+    
+    # Decision
+    recommendation = models.CharField(max_length=20, choices=RECOMMENDATION_CHOICES, default='proceed')
+    recommendation_notes = models.TextField(blank=True, help_text="Reasoning for recommendation")
+    
+    # Metadata
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    class Meta:
+        ordering = ['interview_recording', 'stage_order']
+        unique_together = ['interview_recording', 'stage_type']  # One interview per stage type per candidate
+    
+    def __str__(self):
+        candidate_name = self.interview_recording.candidate_name
+        return f"{candidate_name} - {self.get_stage_type_display()} ({self.overall_score}/10)"
+    
+    @property
+    def candidate_name(self):
+        return self.interview_recording.candidate_name
+    
+    @property
+    def candidate_email(self):
+        return self.interview_recording.candidate_email
+    
+    @property
+    def job_title(self):
+        return self.interview_recording.job_title
+    
+    def calculate_overall_score(self):
+        """Calculate overall score as average of individual scores"""
+        scores = [
+            self.technical_skills_score,
+            self.communication_score, 
+            self.cultural_fit_score,
+            self.problem_solving_score
+        ]
+        valid_scores = []
+        for score in scores:
+            try:
+                score_val = float(score)
+                if score_val > 0:
+                    valid_scores.append(score_val)
+            except (ValueError, TypeError):
+                continue
+        
+        if valid_scores:
+            return round(sum(valid_scores) / len(valid_scores), 1)
+        return 0.0
+    
+    def save(self, *args, **kwargs):
+        """Auto-calculate overall score if individual scores provided"""
+        if any([self.technical_skills_score, self.communication_score, 
+               self.cultural_fit_score, self.problem_solving_score]):
+            self.overall_score = self.calculate_overall_score()
+        super().save(*args, **kwargs)
+
+
+class CandidatePipeline(models.Model):
+    """Model to track candidate's overall progress through interview pipeline"""
+    
+    STATUS_CHOICES = [
+        ('initial_complete', 'Initial Interview Complete'),
+        ('in_pipeline', 'In Interview Pipeline'),
+        ('ready_for_onboarding', 'Ready for Onboarding'),
+        ('onboarded', 'Onboarded'),
+        ('rejected', 'Rejected'),
+        ('withdrawn', 'Candidate Withdrawn'),
+    ]
+    
+    # Core relationships
+    interview_recording = models.OneToOneField(
+        'InterviewRecording',
+        on_delete=models.CASCADE,
+        related_name='pipeline_status'
+    )
+    
+    # Pipeline tracking
+    current_stage = models.CharField(max_length=50, default='initial_complete')
+    pipeline_status = models.CharField(max_length=30, choices=STATUS_CHOICES, default='initial_complete')
+    
+    # Onboarding eligibility
+    meets_onboarding_criteria = models.BooleanField(default=False)
+    onboarding_email_sent = models.BooleanField(default=False)
+    onboarding_email_sent_at = models.DateTimeField(null=True, blank=True)
+    
+    # Pipeline metadata
+    pipeline_started_at = models.DateTimeField(auto_now_add=True)
+    last_activity_at = models.DateTimeField(auto_now=True)
+    
+    # HR notes
+    hr_notes = models.TextField(blank=True, help_text="Internal HR notes about candidate")
+    
+    class Meta:
+        ordering = ['-last_activity_at']
+    
+    def __str__(self):
+        candidate_name = self.interview_recording.candidate_name
+        return f"{candidate_name} - {self.get_pipeline_status_display()}"
+    
+    @property
+    def candidate_name(self):
+        return self.interview_recording.candidate_name
+    
+    @property
+    def candidate_email(self):
+        return self.interview_recording.candidate_email
+    
+    @property
+    def job_title(self):
+        return self.interview_recording.job_title
+    
+    @property
+    def total_stages_completed(self):
+        """Count total interview stages completed (including initial)"""
+        additional_stages = self.interview_recording.additional_stages.count()
+        return 1 + additional_stages  # 1 for initial interview + additional stages
+    
+    @property
+    def has_required_stages(self):
+        """Check if candidate has minimum stages for onboarding (Initial + at least 1 more)"""
+        return self.total_stages_completed >= 2
+    
+    @property
+    def average_score(self):
+        """Calculate average score across all interview stages"""
+        scores = []
+        
+        # Add initial interview score
+        if hasattr(self.interview_recording, 'evaluation') and self.interview_recording.evaluation:
+            scores.append(self.interview_recording.evaluation.overall_score)
+        
+        # Add additional stage scores
+        for stage in self.interview_recording.additional_stages.all():
+            if stage.overall_score > 0:
+                scores.append(stage.overall_score)
+        
+        if scores:
+            return round(sum(scores) / len(scores), 1)
+        return 0.0
+    
+    def update_onboarding_eligibility(self):
+        """Update onboarding eligibility based on completed stages and scores"""
+        if self.has_required_stages and self.average_score >= 6.0:
+            self.meets_onboarding_criteria = True
+            if self.pipeline_status == 'in_pipeline':
+                self.pipeline_status = 'ready_for_onboarding'
+        else:
+            self.meets_onboarding_criteria = False
+        
+        self.save()
+    
+    def get_next_suggested_stages(self):
+        """Get suggested next interview stages"""
+        completed_stages = set(self.interview_recording.additional_stages.values_list('stage_type', flat=True))
+        all_stages = ['technical', 'behavioral', 'final']
+        return [stage for stage in all_stages if stage not in completed_stages]

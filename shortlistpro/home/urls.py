@@ -23,6 +23,16 @@ urlpatterns = [
     path('dashboard/interviews/delete/', views.delete_interviews, name='delete_interviews'),
     path('dashboard/interviews/retry-evaluation/<int:recording_id>/', views.retry_evaluation, name='retry_evaluation'),
     path('dashboard/interviews/retry-interview/<int:recording_id>/', views.retry_interview, name='retry_interview'),
+    
+    # Interview Pipeline Management
+    path('dashboard/interview-pipeline/', views.interview_pipeline, name='interview_pipeline'),
+    path('dashboard/interview-pipeline/add-stage/', views.add_interview_stage, name='add_interview_stage'),
+    path('dashboard/interview-pipeline/fetch-candidates/', views.fetch_candidates_from_evaluation, name='fetch_candidates_from_evaluation'),
+    path('dashboard/interview-pipeline/fetch-new-candidates/', views.fetch_candidates, name='fetch_candidates'),
+    path('dashboard/interview-pipeline/onboard-candidate/', views.onboard_candidate, name='onboard_candidate'),
+    path('dashboard/interview-pipeline/delete-candidates/', views.delete_candidates, name='delete_candidates'),
+    path('dashboard/interview-pipeline/reset-candidates/', views.reset_candidates, name='reset_candidates'),
+    
     path('send-candidate-emails/', views.send_candidate_emails, name='send_candidate_emails'),
     path('get_profile_address/', views.get_profile_address, name='get_profile_address'),
     # Legacy evaluations page - replaced by unified dashboard

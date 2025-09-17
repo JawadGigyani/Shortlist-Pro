@@ -35,8 +35,9 @@ from django.shortcuts import redirect, get_object_or_404
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
+from django.db import IntegrityError
 from .forms import UserForm, ProfileForm, JobDescriptionForm, ResumeForm
-from .models import Resume, Shortlisted, Interview, JobDescription, MatchingResult, InterviewQuestions, InterviewSession, InterviewRecording, InterviewMessage
+from .models import Resume, Shortlisted, Interview, JobDescription, MatchingResult, InterviewQuestions, InterviewSession, InterviewRecording, InterviewMessage, InterviewStage, CandidatePipeline
 from django.utils import timezone
 from datetime import timedelta
 from django.utils import timezone
@@ -3024,4 +3025,611 @@ def retry_interview(request, recording_id):
         return JsonResponse({
             'success': False,
             'message': f'Server error: {str(e)}'
+        })
+
+
+# --- Interview Pipeline Management Views ---
+
+@login_required
+def interview_pipeline(request):
+    """Main interview pipeline dashboard with vertical candidate list and tag-based system"""
+    
+    # Get all completed initial interviews for this user
+    completed_interviews = InterviewRecording.objects.filter(
+        matching_result__user=request.user,
+        status='completed'
+    ).select_related(
+        'matching_result__resume', 
+        'matching_result__job_description'
+    ).prefetch_related('additional_stages')
+    
+    candidates = []
+    
+    # Process each interview to create candidate data
+    for interview in completed_interviews:
+        # Ensure candidate has pipeline status
+        pipeline_status, created = CandidatePipeline.objects.get_or_create(
+            interview_recording=interview,
+            defaults={'pipeline_status': 'initial_complete'}
+        )
+        
+        if created:
+            pipeline_status.update_onboarding_eligibility()
+        
+        # Get completed interview stages
+        completed_stages = list(interview.additional_stages.all())
+        
+        # Create list of interview types for filtering
+        interview_types_list = []
+        for stage in completed_stages:
+            interview_types_list.append(stage.stage_type)
+        
+        # Check if onboarded
+        is_onboarded = pipeline_status.pipeline_status == 'onboarded'
+        if is_onboarded:
+            interview_types_list.append('onboarded')
+        
+        # Calculate average score
+        average_score = 0.0
+        total_scores = 0.0
+        score_count = 0
+        
+        # For now, we don't have evaluation scores in this model
+        # This will be implemented when interview evaluation is added
+        
+        # Include additional stage scores
+        for stage in completed_stages:
+            if hasattr(stage, 'overall_score') and stage.overall_score:
+                total_scores += float(stage.overall_score)
+                score_count += 1
+        
+        if score_count > 0:
+            average_score = total_scores / score_count
+        
+        # Check if can be onboarded (has at least 1 stage including initial and average >= 6.0)
+        can_be_onboarded = (
+            score_count >= 1 and  # Initial + at least 0 more (just 1 total)
+            average_score >= 6.0 and
+            not is_onboarded
+        )
+        
+        candidate_data = {
+            'id': interview.id,
+            'name': interview.get_candidate_name(),
+            'email': interview.candidate_email or '',
+            'job_title': interview.matching_result.job_description.title if interview.matching_result.job_description else '',
+            'interview_types_list': interview_types_list,
+            'average_score': float(average_score) if average_score else 0.0,
+            'is_onboarded': is_onboarded,
+            'can_be_onboarded': can_be_onboarded,
+            'created_at': interview.created_at.isoformat(),
+            'interview_tags': [
+                {
+                    'type': stage.stage_type,
+                    'score': float(stage.overall_score) if stage.overall_score else 0,
+                    'status': stage.recommendation or 'proceed',
+                    'date': stage.created_at.isoformat()
+                }
+                for stage in completed_stages
+            ]
+        }
+        
+        candidates.append(candidate_data)
+    
+    # Sort candidates by creation date (newest first)
+    candidates.sort(key=lambda x: x['created_at'], reverse=True)
+    
+    # Calculate statistics
+    total_candidates = len(candidates)
+    technical_count = len([c for c in candidates if 'technical' in c['interview_types_list']])
+    behavioral_count = len([c for c in candidates if 'behavioral' in c['interview_types_list']])
+    onboarded_count = len([c for c in candidates if c['is_onboarded']])
+    
+    context = {
+        'candidates': candidates,
+        'total_candidates': total_candidates,
+        'technical_count': technical_count,
+        'behavioral_count': behavioral_count,
+        'onboarded_count': onboarded_count,
+    }
+    
+    return render(request, 'home/interview_pipeline.html', context)
+
+
+@login_required
+@require_http_methods(["POST"])
+def add_interview_stage(request):
+    """Add a new interview stage for a candidate - updated for new interface"""
+    
+    try:
+        candidate_id = request.POST.get('candidate_id')
+        stage_type = request.POST.get('stage_type')
+        duration = request.POST.get('duration', 60)
+        
+        # Get the interview recording
+        interview = get_object_or_404(InterviewRecording, 
+                                    id=candidate_id, 
+                                    matching_result__user=request.user)
+        
+        # Get interview-specific scores
+        scores = {}
+        if stage_type == 'technical':
+            scores.update({
+                'technical_skills_score': float(request.POST.get('technical_skills_score', 0)),
+                'problem_solving_score': float(request.POST.get('problem_solving_score', 0)),
+                'communication_score': float(request.POST.get('communication_score', 0)),
+            })
+        elif stage_type == 'behavioral':
+            scores.update({
+                'communication_score': float(request.POST.get('communication_score', 0)),
+                'cultural_fit_score': float(request.POST.get('cultural_fit_score', 0)),
+                'problem_solving_score': float(request.POST.get('problem_solving_score', 0)),
+            })
+        elif stage_type == 'final':
+            scores.update({
+                'technical_skills_score': float(request.POST.get('technical_skills_score', 0)),
+                'communication_score': float(request.POST.get('communication_score', 0)),
+                'cultural_fit_score': float(request.POST.get('cultural_fit_score', 0)),
+                'problem_solving_score': float(request.POST.get('problem_solving_score', 0)),
+            })
+        
+        # Calculate overall score as average of provided scores
+        provided_scores = []
+        for score in scores.values():
+            try:
+                score_val = float(score)
+                if score_val > 0:
+                    provided_scores.append(score_val)
+            except (ValueError, TypeError):
+                continue
+        
+        overall_score = float(sum(provided_scores) / len(provided_scores)) if provided_scores else 0.0
+        
+        # Feedback - simplified to just notes and recommendation
+        additional_notes = request.POST.get('notes', '')
+        recommendation = request.POST.get('recommendation', 'proceed')
+        
+        # Determine stage order
+        existing_stages = interview.additional_stages.count()
+        stage_order = existing_stages + 1
+        
+        # Create the interview stage
+        stage = InterviewStage.objects.create(
+            interview_recording=interview,
+            stage_type=stage_type,
+            stage_order=stage_order,
+            interviewer=request.user,
+            interview_date=timezone.now(),
+            duration_minutes=int(duration),
+            overall_score=overall_score,
+            notes=additional_notes,
+            recommendation=recommendation,
+            **scores  # Add all the interview-specific scores
+        )
+        
+        # Update pipeline status
+        pipeline_status, created = CandidatePipeline.objects.get_or_create(
+            interview_recording=interview,
+            defaults={'pipeline_status': 'in_pipeline'}
+        )
+        
+        if pipeline_status.pipeline_status == 'initial_complete':
+            pipeline_status.pipeline_status = 'in_pipeline'
+            pipeline_status.save()
+        
+        # Update onboarding eligibility
+        pipeline_status.update_onboarding_eligibility()
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'{stage.get_stage_type_display()} interview added successfully'
+        })
+        
+    except IntegrityError as e:
+        if 'unique constraint' in str(e).lower():
+            return JsonResponse({
+                'success': False,
+                'message': f'An interview of this type has already been recorded for this candidate.'
+            })
+        else:
+            logger.error(f"Database integrity error adding interview stage: {str(e)}")
+            return JsonResponse({
+                'success': False,
+                'message': f'Database error: {str(e)}'
+            })
+    except Exception as e:
+        logger.error(f"Error adding interview stage: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'message': f'Error adding interview stage: {str(e)}'
+        })
+
+
+@login_required
+@require_http_methods(["POST"])
+def fetch_candidates_from_evaluation(request):
+    """Fetch candidates from the evaluation system to the pipeline"""
+    
+    try:
+        # Get candidates who completed AI evaluation but aren't in pipeline yet
+        new_candidates_count = 0
+        
+        # This is automatically handled by the interview_pipeline view
+        # which fetches all completed interviews
+        # Here we just confirm the action
+        
+        return JsonResponse({
+            'success': True,
+            'message': 'Candidates refreshed successfully'
+        })
+        
+    except Exception as e:
+        logger.error(f"Error fetching candidates: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'message': f'Error fetching candidates: {str(e)}'
+        })
+
+
+@login_required
+@require_http_methods(["POST"])  
+def onboard_candidate(request):
+    """Send onboarding email to a candidate"""
+    
+    try:
+        candidate_id = request.POST.get('candidate_id')
+        
+        # Get the interview recording
+        interview = get_object_or_404(InterviewRecording, 
+                                    id=candidate_id, 
+                                    matching_result__user=request.user)
+        
+        # Update pipeline status to onboarded
+        pipeline_status, created = CandidatePipeline.objects.get_or_create(
+            interview_recording=interview,
+            defaults={'pipeline_status': 'onboarded'}
+        )
+        
+        pipeline_status.pipeline_status = 'onboarded'
+        pipeline_status.onboarding_email_sent = True
+        pipeline_status.onboarded_at = timezone.now()
+        pipeline_status.save()
+        
+        # Send actual onboarding email through email agent
+        try:
+            import requests
+            
+            # Prepare data for email agent
+            email_data = {
+                "candidate_ids": [int(candidate_id)],
+                "email_type": "onboarding",
+                "hr_user_id": request.user.id
+            }
+            
+            # Call email agent API
+            email_response = requests.post(
+                'http://localhost:8003/send-emails',  # Email agent runs on port 8003
+                json=email_data,
+                timeout=10
+            )
+            
+            if email_response.status_code == 200:
+                email_result = email_response.json()
+                logger.info(f"Onboarding email sent successfully: {email_result}")
+            else:
+                logger.warning(f"Email agent returned status {email_response.status_code}")
+                
+        except requests.exceptions.RequestException as e:
+            # Don't fail the onboarding if email fails, just log it
+            logger.error(f"Failed to send onboarding email via email agent: {str(e)}")
+        except Exception as e:
+            logger.error(f"Error calling email agent: {str(e)}")
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Onboarding email sent to {interview.get_candidate_name()}'
+        })
+        
+    except Exception as e:
+        logger.error(f"Error onboarding candidate: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'message': f'Error onboarding candidate: {str(e)}'
+        })
+
+
+@login_required
+@require_http_methods(["POST"])
+def delete_candidates(request):
+    """Delete selected candidates"""
+    
+    try:
+        # Handle FormData from frontend
+        candidate_ids_json = request.POST.get('candidate_ids', '[]')
+        candidate_ids = json.loads(candidate_ids_json)
+        
+        if not candidate_ids:
+            return JsonResponse({
+                'success': False,
+                'message': 'No candidates selected'
+            })
+        
+        # Delete the interview recordings and related data
+        deleted_count = 0
+        for candidate_id in candidate_ids:
+            try:
+                interview = InterviewRecording.objects.get(
+                    id=candidate_id, 
+                    matching_result__user=request.user
+                )
+                interview.delete()  # This will cascade delete related objects
+                deleted_count += 1
+            except InterviewRecording.DoesNotExist:
+                continue
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Successfully deleted {deleted_count} candidates'
+        })
+        
+    except Exception as e:
+        logger.error(f"Error deleting candidates: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'message': f'Error deleting candidates: {str(e)}'
+        })
+
+
+@login_required
+@require_http_methods(["POST"])
+def reset_candidates(request):
+    """Reset selected candidates to initial state - clear interviews and onboarding"""
+    
+    try:
+        # Handle FormData from frontend
+        candidate_ids_json = request.POST.get('candidate_ids', '[]')
+        candidate_ids = json.loads(candidate_ids_json)
+        
+        if not candidate_ids:
+            return JsonResponse({
+                'success': False,
+                'message': 'No candidates selected'
+            })
+        
+        # Reset candidates to initial state
+        reset_count = 0
+        for candidate_id in candidate_ids:
+            try:
+                interview = InterviewRecording.objects.get(
+                    id=candidate_id, 
+                    matching_result__user=request.user
+                )
+                
+                # Delete all interview stages
+                interview.additional_stages.all().delete()
+                
+                # Reset pipeline status to initial_complete
+                pipeline_status, created = CandidatePipeline.objects.get_or_create(
+                    interview_recording=interview,
+                    defaults={'pipeline_status': 'initial_complete'}
+                )
+                
+                logger.info(f"Resetting candidate {interview.id}: current pipeline_status = {pipeline_status.pipeline_status}")
+                
+                pipeline_status.pipeline_status = 'initial_complete'
+                pipeline_status.current_stage = 'initial_complete'
+                pipeline_status.meets_onboarding_criteria = False
+                pipeline_status.onboarding_email_sent = False
+                pipeline_status.onboarding_email_sent_at = None
+                pipeline_status.save()
+                
+                logger.info(f"After reset: pipeline_status = {pipeline_status.pipeline_status}, is_onboarded should be {pipeline_status.pipeline_status == 'onboarded'}")
+                
+                reset_count += 1
+                
+            except InterviewRecording.DoesNotExist:
+                continue
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Successfully reset {reset_count} candidates to initial state'
+        })
+        
+    except Exception as e:
+        logger.error(f"Error resetting candidates: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'message': f'Error resetting candidates: {str(e)}'
+        })
+
+
+@login_required
+@require_http_methods(["POST"])
+def edit_interview_stage(request, stage_id):
+    """Edit an existing interview stage"""
+    
+    try:
+        # Get the interview stage
+        stage = get_object_or_404(InterviewStage, 
+                                id=stage_id, 
+                                interview_recording__matching_result__user=request.user)
+        
+        # Update fields
+        stage.interview_date = request.POST.get('interview_date', stage.interview_date)
+        stage.duration_minutes = int(request.POST.get('duration_minutes', stage.duration_minutes))
+        
+        # Update scores
+        stage.overall_score = float(request.POST.get('overall_score', stage.overall_score))
+        stage.technical_skills_score = float(request.POST.get('technical_skills_score', stage.technical_skills_score))
+        stage.communication_score = float(request.POST.get('communication_score', stage.communication_score))
+        stage.cultural_fit_score = float(request.POST.get('cultural_fit_score', stage.cultural_fit_score))
+        stage.problem_solving_score = float(request.POST.get('problem_solving_score', stage.problem_solving_score))
+        
+        # Update feedback
+        stage.strengths = request.POST.get('strengths', stage.strengths)
+        stage.weaknesses = request.POST.get('weaknesses', stage.weaknesses)
+        stage.notes = request.POST.get('notes', stage.notes)
+        stage.recommendation = request.POST.get('recommendation', stage.recommendation)
+        stage.recommendation_notes = request.POST.get('recommendation_notes', stage.recommendation_notes)
+        
+        stage.save()
+        
+        # Update pipeline onboarding eligibility
+        stage.interview_recording.pipeline_status.update_onboarding_eligibility()
+        
+        messages.success(request, f'{stage.get_stage_type_display()} interview updated successfully')
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'{stage.get_stage_type_display()} interview updated successfully'
+        })
+        
+    except Exception as e:
+        logger.error(f"Error editing interview stage: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'message': f'Error editing interview stage: {str(e)}'
+        })
+
+
+@login_required 
+@require_http_methods(["POST"])
+def delete_interview_stage(request, stage_id):
+    """Delete an interview stage"""
+    
+    try:
+        stage = get_object_or_404(InterviewStage, 
+                                id=stage_id, 
+                                interview_recording__matching_result__user=request.user)
+        
+        stage_name = stage.get_stage_type_display()
+        candidate_name = stage.candidate_name
+        
+        stage.delete()
+        
+        # Update pipeline onboarding eligibility
+        stage.interview_recording.pipeline_status.update_onboarding_eligibility()
+        
+        messages.success(request, f'{stage_name} interview deleted for {candidate_name}')
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'{stage_name} interview deleted successfully'
+        })
+        
+    except Exception as e:
+        logger.error(f"Error deleting interview stage: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'message': f'Error deleting interview stage: {str(e)}'
+        })
+
+
+@login_required
+@require_http_methods(["POST"])
+def send_onboarding_email(request, recording_id):
+    """Send onboarding email to candidate"""
+    
+    try:
+        # Get the interview recording and pipeline status
+        interview = get_object_or_404(InterviewRecording, 
+                                    id=recording_id, 
+                                    matching_result__user=request.user)
+        
+        pipeline_status = get_object_or_404(CandidatePipeline, 
+                                          interview_recording=interview)
+        
+        # Check if candidate meets onboarding criteria
+        if not pipeline_status.meets_onboarding_criteria:
+            return JsonResponse({
+                'success': False,
+                'message': 'Candidate does not meet onboarding criteria (needs Initial + 1 more interview with avg score >= 6.0)'
+            })
+        
+        # Check if onboarding email already sent
+        if pipeline_status.onboarding_email_sent:
+            return JsonResponse({
+                'success': False,
+                'message': 'Onboarding email has already been sent to this candidate'
+            })
+        
+        # TODO: Call email service to send onboarding email
+        # For now, just mark as sent
+        pipeline_status.onboarding_email_sent = True
+        pipeline_status.onboarding_email_sent_at = timezone.now()
+        pipeline_status.pipeline_status = 'onboarded'
+        pipeline_status.save()
+        
+        messages.success(request, f'Onboarding email sent to {interview.candidate_name}')
+        
+        return JsonResponse({
+            'success': True,
+            'message': f'Onboarding email sent to {interview.candidate_name}'
+        })
+        
+    except Exception as e:
+        logger.error(f"Error sending onboarding email: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'message': f'Error sending onboarding email: {str(e)}'
+        })
+
+
+@login_required
+@require_http_methods(["POST"])
+def fetch_candidates(request):
+    """
+    Fetch candidates who have completed their initial AI interviews 
+    and are not yet in the interview pipeline
+    """
+    try:
+        # Get all completed interviews for this user that are not yet in pipeline
+        completed_interviews = InterviewRecording.objects.filter(
+            matching_result__user=request.user,
+            status='completed'
+        ).exclude(
+            # Exclude interviews that already have a pipeline status
+            pipeline_status__isnull=False
+        ).select_related(
+            'matching_result__resume', 
+            'matching_result__job_description'
+        )
+        
+        new_candidates_count = 0
+        
+        # Create pipeline entries for new candidates
+        for interview in completed_interviews:
+            # Create pipeline status for this candidate
+            pipeline_status, created = CandidatePipeline.objects.get_or_create(
+                interview_recording=interview,
+                defaults={
+                    'pipeline_status': 'initial_complete',
+                    'current_stage': None,
+                    'meets_onboarding_criteria': False
+                }
+            )
+            
+            if created:
+                new_candidates_count += 1
+                # Update onboarding eligibility
+                pipeline_status.update_onboarding_eligibility()
+        
+        if new_candidates_count > 0:
+            return JsonResponse({
+                'success': True,
+                'count': new_candidates_count,
+                'message': f'Successfully fetched {new_candidates_count} new candidates'
+            })
+        else:
+            return JsonResponse({
+                'success': False,
+                'count': 0,
+                'message': 'No new candidates found. All completed interviews are already in the pipeline.'
+            })
+            
+    except Exception as e:
+        logger.error(f"Error fetching candidates: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'message': f'Error fetching candidates: {str(e)}'
         })

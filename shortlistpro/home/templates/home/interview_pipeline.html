@@ -1,0 +1,953 @@
+{% extends 'home/dashboard_base.html' %}
+{% load static %}
+
+{% block dashboard_title %}Interview Pipeline Management{% endblock %}
+
+{% block dashboard_content %}
+{{ candidates|json_script:"candidates-data" }}
+<div x-data="interviewPipelineManager()">
+  <!-- Page Header -->
+  <div class="flex flex-col lg:flex-row lg:items-center justify-between space-y-6 lg:space-y-0 mb-8">
+    <div>
+      <h2 class="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-600 bg-clip-text text-transparent">Interview Pipeline Management</h2>
+      <p class="text-gray-600 mt-2">Manage candidates through multi-stage interview process with tag-based tracking</p>
+    </div>
+
+    <!-- Controls -->
+    <div class="flex flex-wrap items-center gap-4">
+      <!-- Fetch Candidates Button -->
+      <button @click="fetchCandidates()"
+              class="inline-flex items-center px-6 py-3 border border-transparent text-sm font-medium rounded-xl text-white bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 focus:outline-none focus:ring-2 focus:ring-green-500 shadow-lg hover:shadow-xl transition-all duration-200">
+        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
+        Fetch New Candidates
+      </button>
+
+      <!-- Search -->
+      <div class="relative">
+        <input type="text"
+               x-model="searchQuery"
+               @input="filterCandidates()"
+               placeholder="Search candidates..."
+               class="pl-11 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 w-72 transition-all duration-200">
+        <div class="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+          <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+        </div>
+      </div>
+
+      <!-- Filter Dropdown -->
+      <select x-model="selectedFilter"
+              @change="filterCandidates()"
+              class="border border-gray-300 rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white text-gray-700 font-medium transition-all duration-200">
+        <option value="">All Candidates</option>
+        <option value="technical">Technical Interview</option>
+        <option value="behavioral">Behavioral Interview</option>
+        <option value="final">Final Interview</option>
+        <option value="hr">HR Interview</option>
+        <option value="onboarded">Onboarded</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Statistics Cards -->
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+    <!-- Total Candidates -->
+    <div class="bg-gradient-to-r from-blue-500 to-blue-600 rounded-2xl p-6 text-white shadow-xl">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-blue-100 text-sm font-medium">Total Candidates</p>
+          <p class="text-3xl font-bold" x-text="filteredCandidates.length">0</p>
+        </div>
+        <div class="bg-blue-400/20 p-3 rounded-xl">
+          <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+          </svg>
+        </div>
+      </div>
+    </div>
+
+    <!-- Technical Interviews -->
+    <div class="bg-gradient-to-r from-orange-500 to-orange-600 rounded-2xl p-6 text-white shadow-xl">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-orange-100 text-sm font-medium">Technical</p>
+          <p class="text-3xl font-bold" x-text="filteredCandidates.filter(c => c.interview_tags.some(tag => tag.type === 'technical')).length">0</p>
+        </div>
+        <div class="bg-orange-400/20 p-3 rounded-xl">
+          <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+        </div>
+      </div>
+    </div>
+
+    <!-- Behavioral Interviews -->
+    <div class="bg-gradient-to-r from-purple-500 to-purple-600 rounded-2xl p-6 text-white shadow-xl">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-purple-100 text-sm font-medium">Behavioral</p>
+          <p class="text-3xl font-bold" x-text="filteredCandidates.filter(c => c.interview_tags.some(tag => tag.type === 'behavioral')).length">0</p>
+        </div>
+        <div class="bg-purple-400/20 p-3 rounded-xl">
+          <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+          </svg>
+        </div>
+      </div>
+    </div>
+
+    <!-- Onboarded -->
+    <div class="bg-gradient-to-r from-green-500 to-green-600 rounded-2xl p-6 text-white shadow-xl">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="text-green-100 text-sm font-medium">Onboarded</p>
+          <p class="text-3xl font-bold" x-text="filteredCandidates.filter(c => c.is_onboarded).length">0</p>
+        </div>
+        <div class="bg-green-400/20 p-3 rounded-xl">
+          <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Custom Alert Component -->
+  <div x-show="alert.show" 
+       x-transition:enter="transition ease-out duration-300"
+       x-transition:enter-start="opacity-0 transform scale-95"
+       x-transition:enter-end="opacity-100 transform scale-100"
+       x-transition:leave="transition ease-in duration-200"
+       x-transition:leave-start="opacity-100 transform scale-100"
+       x-transition:leave-end="opacity-0 transform scale-95"
+       class="fixed top-4 right-4 z-50 max-w-sm w-full">
+    <div :class="alert.type === 'success' ? 'bg-green-50 border-green-200' : 
+                 alert.type === 'error' ? 'bg-red-50 border-red-200' : 
+                 'bg-blue-50 border-blue-200'"
+         class="border-2 rounded-2xl shadow-xl p-4 backdrop-blur-sm">
+      <div class="flex items-start">
+        <!-- Icon -->
+        <div class="flex-shrink-0">
+          <template x-if="alert.type === 'success'">
+            <div class="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
+              <svg class="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+          </template>
+          <template x-if="alert.type === 'error'">
+            <div class="w-8 h-8 bg-red-100 rounded-full flex items-center justify-center">
+              <svg class="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </div>
+          </template>
+          <template x-if="alert.type === 'info'">
+            <div class="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+              <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+          </template>
+        </div>
+        
+        <!-- Content -->
+        <div class="ml-3 flex-1">
+          <h4 :class="alert.type === 'success' ? 'text-green-800' : 
+                      alert.type === 'error' ? 'text-red-800' : 
+                      'text-blue-800'"
+              class="text-sm font-semibold" x-text="alert.title"></h4>
+          <p :class="alert.type === 'success' ? 'text-green-700' : 
+                     alert.type === 'error' ? 'text-red-700' : 
+                     'text-blue-700'"
+             class="text-sm mt-1" x-text="alert.message"></p>
+        </div>
+        
+        <!-- Close Button -->
+        <div class="ml-4 flex-shrink-0 flex">
+          <button @click="hideAlert()" 
+                  :class="alert.type === 'success' ? 'text-green-400 hover:text-green-600' : 
+                          alert.type === 'error' ? 'text-red-400 hover:text-red-600' : 
+                          'text-blue-400 hover:text-blue-600'"
+                  class="inline-flex rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2">
+            <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Custom Confirmation Dialog -->
+  <div x-show="confirmDialog.show" 
+       x-transition:enter="transition ease-out duration-300"
+       x-transition:enter-start="opacity-0"
+       x-transition:enter-end="opacity-100"
+       x-transition:leave="transition ease-in duration-200"
+       x-transition:leave-start="opacity-100"
+       x-transition:leave-end="opacity-0"
+       class="fixed inset-0 z-50 overflow-y-auto">
+    
+    <!-- Backdrop -->
+    <div class="flex items-center justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:p-0">
+      <div x-show="confirmDialog.show"
+           x-transition:enter="transition ease-out duration-300"
+           x-transition:enter-start="opacity-0"
+           x-transition:enter-end="opacity-100"
+           x-transition:leave="transition ease-in duration-200"
+           x-transition:leave-start="opacity-100"
+           x-transition:leave-end="opacity-0"
+           class="fixed inset-0 bg-gray-500 bg-opacity-75 backdrop-blur-sm"></div>
+
+      <!-- Dialog -->
+      <div x-show="confirmDialog.show"
+           x-transition:enter="transition ease-out duration-300"
+           x-transition:enter-start="opacity-0 transform translate-y-4 sm:translate-y-0 sm:scale-95"
+           x-transition:enter-end="opacity-100 transform translate-y-0 sm:scale-100"
+           x-transition:leave="transition ease-in duration-200"
+           x-transition:leave-start="opacity-100 transform translate-y-0 sm:scale-100"
+           x-transition:leave-end="opacity-0 transform translate-y-4 sm:translate-y-0 sm:scale-95"
+           class="relative inline-block align-bottom bg-white rounded-2xl px-4 pt-5 pb-4 text-left overflow-hidden shadow-2xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
+        
+        <!-- Dialog Content -->
+        <div>
+          <!-- Icon -->
+          <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full mb-4"
+               :class="confirmDialog.type === 'onboard' ? 'bg-green-100' : 
+                      confirmDialog.type === 'delete' ? 'bg-red-100' : 
+                      confirmDialog.type === 'reset' ? 'bg-orange-100' : 'bg-blue-100'">
+            <template x-if="confirmDialog.type === 'onboard'">
+              <svg class="h-8 w-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 4.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+            </template>
+            <template x-if="confirmDialog.type === 'delete'">
+              <svg class="h-8 w-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </template>
+            <template x-if="confirmDialog.type === 'reset'">
+              <svg class="h-8 w-8 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            </template>
+          </div>
+          
+          <!-- Title -->
+          <div class="text-center">
+            <h3 class="text-xl font-bold text-gray-900 mb-2" x-text="confirmDialog.title"></h3>
+            <p class="text-gray-600 text-sm mb-6" x-text="confirmDialog.message"></p>
+            
+            <!-- Special content for onboarding -->
+            <template x-if="confirmDialog.type === 'onboard'">
+              <div class="bg-green-50 border border-green-200 rounded-xl p-4 mb-6">
+                <div class="flex items-center mb-2">
+                  <svg class="w-5 h-5 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span class="font-medium text-green-800">What happens next?</span>
+                </div>
+                <ul class="text-green-700 text-sm space-y-1 text-left">
+                  <li>• Welcome email will be sent immediately</li>
+                  <li>• Candidate status updated to "Onboarded"</li>
+                  <li>• HR onboarding process initiated</li>
+                </ul>
+              </div>
+            </template>
+
+            <!-- Special content for reset -->
+            <template x-if="confirmDialog.type === 'reset'">
+              <div class="bg-orange-50 border border-orange-200 rounded-xl p-4 mb-6">
+                <div class="flex items-center mb-2">
+                  <svg class="w-5 h-5 text-orange-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                  </svg>
+                  <span class="font-medium text-orange-800">What will be reset?</span>
+                </div>
+                <ul class="text-orange-700 text-sm space-y-1 text-left">
+                  <li>• All interview stages and scores will be cleared</li>
+                  <li>• Onboarding status will be reset</li>
+                  <li>• Candidate returns to initial pipeline state</li>
+                  <li>• Ready for fresh interview process</li>
+                </ul>
+              </div>
+            </template>
+          </div>
+        </div>
+
+        <!-- Buttons -->
+        <div class="mt-5 sm:mt-6 sm:flex sm:flex-row-reverse sm:gap-3">
+          <button @click="confirmAction()"
+                  :class="confirmDialog.type === 'onboard' ? 'bg-green-600 hover:bg-green-700 focus:ring-green-500' : 
+                         confirmDialog.type === 'delete' ? 'bg-red-600 hover:bg-red-700 focus:ring-red-500' : 
+                         confirmDialog.type === 'reset' ? 'bg-orange-600 hover:bg-orange-700 focus:ring-orange-500' : 'bg-blue-600 hover:bg-blue-700 focus:ring-blue-500'"
+                  class="w-full inline-flex justify-center rounded-xl border border-transparent px-4 py-2 text-base font-medium text-white shadow-lg hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all duration-200 sm:ml-3 sm:w-auto sm:text-sm">
+            <span x-text="confirmDialog.confirmText"></span>
+          </button>
+          <button @click="cancelConfirm()"
+                  class="mt-3 w-full inline-flex justify-center rounded-xl border border-gray-300 bg-white px-4 py-2 text-base font-medium text-gray-700 shadow-md hover:shadow-lg hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition-all duration-200 sm:mt-0 sm:w-auto sm:text-sm">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Candidates List -->
+  <div class="bg-white rounded-2xl shadow-xl overflow-hidden">
+    <!-- Header -->
+    <div class="px-6 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-gray-100">
+      <div class="flex items-center justify-between">
+        <h3 class="text-lg font-semibold text-gray-900">Candidates</h3>
+
+        <!-- Bulk Actions -->
+        <template x-if="selectedCandidates.length > 0">
+          <div class="flex items-center gap-3">
+            <div class="bg-blue-50 text-blue-700 px-4 py-2 rounded-xl text-sm font-medium border border-blue-200">
+              <span x-text="selectedCandidates.length"></span> selected
+            </div>
+            <button @click="deleteSelected()"
+                    class="inline-flex items-center px-4 py-2 border border-red-200 text-sm font-medium rounded-xl text-red-700 bg-red-50 hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-red-500 transition-all duration-200">
+              <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+              </svg>
+              Delete
+            </button>
+            <button @click="resetSelected()"
+                    class="inline-flex items-center px-4 py-2 border border-orange-200 text-sm font-medium rounded-xl text-orange-700 bg-orange-50 hover:bg-orange-100 focus:outline-none focus:ring-2 focus:ring-orange-500 transition-all duration-200">
+              <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+              </svg>
+              Reset
+            </button>
+          </div>
+        </template>
+      </div>
+    </div>
+
+    <!-- Candidates -->
+    <div class="divide-y divide-gray-200">
+      <template x-for="candidate in filteredCandidates" :key="candidate.id">
+        <div class="p-6 hover:bg-gray-50 transition-colors duration-200">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-4">
+              <!-- Checkbox -->
+              <input type="checkbox"
+                     :value="candidate.id"
+                     x-model="selectedCandidates"
+                     class="w-5 h-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500 focus:ring-2">
+
+              <!-- Avatar -->
+              <div class="w-12 h-12 bg-gradient-to-r from-blue-500 to-purple-500 rounded-xl flex items-center justify-center text-white font-semibold text-lg">
+                <span x-text="candidate.name.charAt(0).toUpperCase()"></span>
+              </div>
+
+              <!-- Candidate Info -->
+              <div class="flex-1">
+                <div class="flex items-center space-x-3">
+                  <h4 class="text-lg font-semibold text-gray-900" x-text="candidate.name"></h4>
+                  <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                    <span x-text="candidate.job_title"></span>
+                  </span>
+                </div>
+                <p class="text-gray-600 text-sm" x-text="candidate.email"></p>
+
+                <!-- Interview Tags -->
+                <div class="flex flex-wrap gap-2 mt-2">
+                  <template x-for="tag in candidate.interview_tags" :key="tag.type">
+                    <span :class="getTagClass(tag.type)"
+                          class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium">
+                      <span x-text="tag.type.charAt(0).toUpperCase() + tag.type.slice(1)"></span>
+                      <span class="ml-1 text-xs opacity-75" x-text="'(' + tag.score.toFixed(1) + ')'"></span>
+                    </span>
+                  </template>
+
+                  <!-- Onboarded Tag -->
+                  <template x-if="candidate.is_onboarded">
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">
+                      Onboarded
+                    </span>
+                  </template>
+                </div>
+              </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex items-center space-x-3">
+              <!-- Action Buttons -->
+              <button @click="showAddInterviewModal(candidate)"
+                      class="inline-flex items-center px-4 py-2 border border-blue-200 text-sm font-medium rounded-xl text-blue-700 bg-blue-50 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-200">
+                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                Add Interview
+              </button>
+
+              <template x-if="candidate.can_be_onboarded">
+                <button @click="onboardCandidate(candidate)"
+                        class="inline-flex items-center px-4 py-2 border border-green-200 text-sm font-medium rounded-xl text-green-700 bg-green-50 hover:bg-green-100 focus:outline-none focus:ring-2 focus:ring-green-500 transition-all duration-200">
+                  <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Onboard
+                </button>
+              </template>
+
+            </div>
+          </div>
+        </div>
+      </template>
+
+      <!-- Empty State -->
+      <template x-if="filteredCandidates.length === 0">
+        <div class="p-12 text-center">
+          <div class="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg class="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+            </svg>
+          </div>
+          <h3 class="text-lg font-medium text-gray-900 mb-2">No candidates found</h3>
+          <p class="text-gray-500 mb-6">Get started by fetching completed interviews or adjusting your filters.</p>
+          <button @click="fetchCandidates()"
+                  class="inline-flex items-center px-6 py-3 border border-transparent text-sm font-medium rounded-xl text-white bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-500 shadow-lg hover:shadow-xl transition-all duration-200">
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            Fetch Candidates
+          </button>
+        </div>
+      </template>
+    </div>
+  </div>
+
+  <!-- Add Interview Modal -->
+  <div x-show="showModal"
+       x-transition:enter="transition ease-out duration-300"
+       x-transition:enter-start="opacity-0"
+       x-transition:enter-end="opacity-100"
+       x-transition:leave="transition ease-in duration-200"
+       x-transition:leave-start="opacity-100"
+       x-transition:leave-end="opacity-0"
+       class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+       style="display: none;">
+    <div class="bg-white rounded-3xl shadow-2xl max-w-4xl w-full max-h-[95vh] overflow-y-auto border border-gray-200">
+      <!-- Modal Header -->
+      <div class="px-8 py-6 border-b border-gray-200 bg-gradient-to-r from-blue-600 via-purple-600 to-blue-700 text-white rounded-t-3xl">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center space-x-4">
+            <div class="w-14 h-14 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center text-white font-bold text-xl shadow-lg">
+              <span x-text="selectedCandidate?.name.charAt(0).toUpperCase()"></span>
+            </div>
+            <div>
+              <h3 class="text-2xl font-bold">Record Interview Results</h3>
+              <p class="text-blue-100 mt-1" x-text="'Record interview results for ' + (selectedCandidate?.name || '')"></p>
+            </div>
+          </div>
+          <button @click="closeModal()" class="text-white/80 hover:text-white hover:bg-white/10 rounded-xl p-2 transition-all duration-200">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Modal Body -->
+      <div class="px-8 py-8 space-y-8">
+        <!-- Interview Type -->
+        <div class="bg-gray-50 rounded-2xl p-6 border border-gray-200">
+          <label class="block text-lg font-semibold text-gray-800 mb-4">Interview Type</label>
+          <select x-model="interviewForm.type"
+                  @change="updateFormFields()"
+                  class="w-full border-2 border-gray-300 rounded-xl px-6 py-4 text-lg focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 bg-white transition-all duration-200">
+            <option value="">Select interview type...</option>
+            <option value="technical">Technical Interview</option>
+            <option value="behavioral">Behavioral Interview</option>
+            <option value="final">Final Interview</option>
+            <option value="hr">HR Interview</option>
+          </select>
+        </div>
+
+        <!-- Duration -->
+        <div class="bg-gray-50 rounded-2xl p-6 border border-gray-200">
+          <label class="block text-lg font-semibold text-gray-800 mb-4">Duration (minutes)</label>
+          <input type="number"
+                 x-model="interviewForm.duration"
+                 min="15"
+                 max="180"
+                 class="w-full border-2 border-gray-300 rounded-xl px-6 py-4 text-lg focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 bg-white transition-all duration-200">
+        </div>
+
+        <!-- Dynamic Form Fields -->
+        <template x-for="field in currentFormFields" :key="field.key">
+          <div class="bg-gray-50 rounded-xl p-4 border border-gray-200">
+            <label class="block text-sm font-semibold text-gray-800 mb-4" x-text="field.label"></label>
+
+            <!-- Radio Button Scale -->
+            <div class="space-y-3">
+              <div class="flex items-center justify-between px-2">
+                <template x-for="score in [0,1,2,3,4,5,6,7,8,9,10]" :key="score">
+                  <label class="flex flex-col items-center space-y-2 cursor-pointer group">
+                    <input type="radio"
+                           :name="'score-' + field.key"
+                           :value="score"
+                           x-model="interviewForm.scores[field.key]"
+                           class="w-5 h-5 text-blue-600 border-2 border-gray-300 focus:ring-blue-500 focus:ring-2 transition-all duration-200">
+                    <span :class="interviewForm.scores[field.key] == score
+                                 ? 'text-blue-600 font-bold'
+                                 : 'text-gray-600 group-hover:text-blue-500'"
+                          class="text-sm font-medium transition-colors duration-200"
+                          x-text="score"></span>
+                  </label>
+                </template>
+              </div>
+
+              <!-- Scale Labels -->
+              <div class="flex justify-between text-xs text-gray-500 px-2">
+                <span class="font-medium">Poor</span>
+                <span class="font-medium">Excellent</span>
+              </div>
+            </div>
+
+            <!-- Current Score Display -->
+            <div class="mt-4 text-center p-3 bg-white rounded-lg border border-gray-200">
+              <span class="text-sm text-gray-600">Selected Score: </span>
+              <span class="text-xl font-bold text-blue-600" x-text="interviewForm.scores[field.key]"></span>
+              <span class="text-sm text-gray-500">out of 10</span>
+            </div>
+          </div>
+        </template>
+
+        <!-- Notes -->
+        <div class="bg-gray-50 rounded-2xl p-6 border border-gray-200">
+          <label class="block text-lg font-semibold text-gray-800 mb-4">Additional Notes</label>
+          <textarea x-model="interviewForm.notes"
+                    rows="4"
+                    class="w-full border-2 border-gray-300 rounded-xl px-6 py-4 text-lg focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 bg-white transition-all duration-200 resize-none"
+                    placeholder="Any additional observations or notes..."></textarea>
+        </div>
+      </div>
+
+      <!-- Modal Footer -->
+      <div class="px-8 py-6 border-t border-gray-200 bg-gray-50 rounded-b-3xl">
+        <div class="flex justify-end space-x-4">
+          <button type="button"
+                  @click="closeModal()"
+                  class="px-8 py-4 border-2 border-gray-300 text-lg font-semibold rounded-xl text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-4 focus:ring-gray-500/20 transition-all duration-200 shadow-sm">
+            Cancel
+          </button>
+          <button type="submit"
+                  @click="submitInterview()"
+                  class="px-8 py-4 border-2 border-transparent text-lg font-semibold rounded-xl text-white bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-4 focus:ring-blue-500/20 shadow-lg hover:shadow-xl transition-all duration-200">
+            Record Interview Results
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+function interviewPipelineManager() {
+    return {
+        searchQuery: '',
+        selectedFilter: '',
+        selectedCandidates: [],
+        allSelected: false,
+        showModal: false,
+        selectedCandidate: null,
+        candidates: JSON.parse(document.getElementById('candidates-data').textContent || '[]'),
+        filteredCandidates: JSON.parse(document.getElementById('candidates-data').textContent || '[]'),
+
+        // Alert system
+        alert: {
+            show: false,
+            type: 'success', // success, error, info
+            title: '',
+            message: ''
+        },
+
+        // Confirmation dialog
+        confirmDialog: {
+            show: false,
+            type: 'onboard', // onboard, delete
+            title: '',
+            message: '',
+            confirmText: 'Confirm',
+            onConfirm: null
+        },
+
+        interviewForm: {
+            type: '',
+            duration: 60,
+            scores: {},
+            notes: '',
+            recommendation: 'proceed'
+        },
+
+        currentFormFields: [],
+
+        formFieldsByType: {
+            'technical': [
+                {key: 'technical_skills', label: 'Technical Skills'},
+                {key: 'problem_solving', label: 'Problem Solving'},
+                {key: 'communication', label: 'Communication'}
+            ],
+            'behavioral': [
+                {key: 'communication', label: 'Communication'},
+                {key: 'cultural_fit', label: 'Cultural Fit'},
+                {key: 'teamwork', label: 'Teamwork'}
+            ],
+            'final': [
+                {key: 'overall_assessment', label: 'Overall Assessment'},
+                {key: 'leadership', label: 'Leadership Potential'},
+                {key: 'strategic_thinking', label: 'Strategic Thinking'}
+            ],
+            'hr': [
+                {key: 'cultural_fit', label: 'Cultural Fit'},
+                {key: 'communication', label: 'Communication'},
+                {key: 'team_compatibility', label: 'Team Compatibility'}
+            ]
+        },
+
+        filterCandidates() {
+            let filtered = this.candidates;
+
+            // Apply search filter
+            if (this.searchQuery.trim()) {
+                const query = this.searchQuery.toLowerCase();
+                filtered = filtered.filter(candidate =>
+                    candidate.name.toLowerCase().includes(query) ||
+                    candidate.email.toLowerCase().includes(query) ||
+                    candidate.job_title.toLowerCase().includes(query)
+                );
+            }
+
+            // Apply type filter
+            if (this.selectedFilter) {
+                filtered = filtered.filter(candidate => {
+                    if (this.selectedFilter === 'onboarded') {
+                        return candidate.is_onboarded;
+                    }
+                    return candidate.interview_tags.some(tag => tag.type === this.selectedFilter);
+                });
+            }
+
+            this.filteredCandidates = filtered;
+            this.updateSelectAll();
+        },
+
+        toggleSelectAll() {
+            if (this.allSelected) {
+                this.selectedCandidates = [];
+            } else {
+                this.selectedCandidates = this.filteredCandidates.map(c => c.id);
+            }
+            this.allSelected = !this.allSelected;
+        },
+
+        toggleCandidateSelection(candidateId) {
+            const index = this.selectedCandidates.indexOf(candidateId);
+            if (index > -1) {
+                this.selectedCandidates.splice(index, 1);
+            } else {
+                this.selectedCandidates.push(candidateId);
+            }
+            this.updateSelectAll();
+        },
+
+        updateSelectAll() {
+            this.allSelected = this.filteredCandidates.length > 0 &&
+                              this.selectedCandidates.length === this.filteredCandidates.length;
+        },
+
+        showAddInterviewModal(candidate) {
+            this.selectedCandidate = candidate;
+            this.showModal = true;
+            this.resetInterviewForm();
+        },
+
+        closeModal() {
+            this.showModal = false;
+            this.selectedCandidate = null;
+            this.resetInterviewForm();
+        },
+
+        resetInterviewForm() {
+            this.interviewForm = {
+                type: '',
+                duration: 60,
+                scores: {},
+                notes: '',
+                recommendation: 'proceed'
+            };
+            this.currentFormFields = [];
+        },
+
+        updateFormFields() {
+            this.currentFormFields = this.formFieldsByType[this.interviewForm.type] || [];
+            this.interviewForm.scores = {};
+
+            // Initialize scores
+            this.currentFormFields.forEach(field => {
+                this.interviewForm.scores[field.key] = 0;
+            });
+        },
+
+        getTagClass(tagType) {
+            const classes = {
+                'technical': 'bg-orange-100 text-orange-800 border border-orange-200',
+                'behavioral': 'bg-purple-100 text-purple-800 border border-purple-200',
+                'final': 'bg-indigo-100 text-indigo-800 border border-indigo-200',
+                'hr': 'bg-blue-100 text-blue-800 border border-blue-200'
+            };
+            return classes[tagType] || 'bg-gray-100 text-gray-800 border border-gray-200';
+        },
+
+        async submitInterview() {
+            try {
+                const formData = new FormData();
+                formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+                formData.append('candidate_id', this.selectedCandidate.id);
+                formData.append('stage_type', this.interviewForm.type);
+                formData.append('duration', this.interviewForm.duration);
+                formData.append('notes', this.interviewForm.notes);
+                formData.append('recommendation', this.interviewForm.recommendation);
+
+                // Add scores
+                Object.keys(this.interviewForm.scores).forEach(key => {
+                    formData.append(`${key}_score`, this.interviewForm.scores[key]);
+                });
+
+                const response = await fetch('{% url "add_interview_stage" %}', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                if (response.ok) {
+                    location.reload(); // Reload to show updated data
+                } else {
+                    this.showAlert('error', 'Save Failed', 'Error saving interview. Please try again.');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                this.showAlert('error', 'Save Failed', 'Error saving interview. Please try again.');
+            }
+        },
+
+        async fetchCandidates() {
+            try {
+                const formData = new FormData();
+                formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+
+                const response = await fetch('{% url "fetch_candidates" %}', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    if (result.success) {
+                        this.showAlert('success', 'Candidates Fetched', `Successfully fetched ${result.count} new candidates!`);
+                        location.reload(); // Reload to show new candidates
+                    } else {
+                        this.showAlert('info', 'No New Candidates', result.message || 'No new candidates found.');
+                    }
+                } else {
+                    this.showAlert('error', 'Fetch Failed', 'Error fetching candidates. Please try again.');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                this.showAlert('error', 'Fetch Failed', 'Error fetching candidates. Please try again.');
+            }
+        },
+
+        async onboardCandidate(candidate) {
+            this.showConfirm(
+                'onboard',
+                `Send onboarding email to ${candidate.name}?`,
+                `This will officially onboard ${candidate.name} and send them a welcome email with next steps.`,
+                'Send Email',
+                async () => {
+                    try {
+                        // Actually send the onboarding email via email agent
+                        const formData = new FormData();
+                        formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+                        formData.append('candidate_id', candidate.id);
+
+                        const response = await fetch(`{% url "onboard_candidate" %}`, {
+                            method: 'POST',
+                            body: formData
+                        });
+
+                        if (response.ok) {
+                            this.showAlert('success', 'Onboarding Successful!', `Welcome email sent to ${candidate.name}. They have been officially onboarded.`);
+                            setTimeout(() => {
+                                location.reload();
+                            }, 2000);
+                        } else {
+                            this.showAlert('error', 'Onboarding Failed', 'Error sending onboarding email. Please try again.');
+                        }
+                    } catch (error) {
+                        console.error('Error:', error);
+                        this.showAlert('error', 'Onboarding Failed', 'Error sending onboarding email. Please try again.');
+                    }
+                }
+            );
+        },
+
+        async deleteSelected() {
+            if (this.selectedCandidates.length === 0) return;
+
+            this.showConfirm(
+                'delete',
+                `Delete ${this.selectedCandidates.length} selected candidate(s)?`,
+                'This action cannot be undone. All interview data and pipeline information will be permanently removed.',
+                'Delete Candidates',
+                async () => {
+                    try {
+                        const formData = new FormData();
+                        formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+                        formData.append('candidate_ids', JSON.stringify(this.selectedCandidates));
+
+                        const response = await fetch('{% url "delete_candidates" %}', {
+                            method: 'POST',
+                            body: formData
+                        });
+
+                        if (response.ok) {
+                            this.showAlert('success', 'Deletion Successful', `Successfully deleted ${this.selectedCandidates.length} candidate(s).`);
+                            setTimeout(() => {
+                                location.reload();
+                            }, 2000);
+                        } else {
+                            this.showAlert('error', 'Delete Failed', 'Error deleting candidates. Please try again.');
+                        }
+                    } catch (error) {
+                        console.error('Error:', error);
+                        this.showAlert('error', 'Delete Failed', 'Error deleting candidates. Please try again.');
+                    }
+                }
+            );
+        },
+
+        async resetSelected() {
+            if (this.selectedCandidates.length === 0) return;
+
+            this.showConfirm(
+                'reset',
+                `Reset ${this.selectedCandidates.length} selected candidate(s)?`,
+                'This will clear all interview stages and onboarding status, returning candidates to their initial state as if they were just fetched.',
+                'Reset Candidates',
+                async () => {
+                    try {
+                        const formData = new FormData();
+                        formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+                        formData.append('candidate_ids', JSON.stringify(this.selectedCandidates));
+
+                        const response = await fetch('{% url "reset_candidates" %}', {
+                            method: 'POST',
+                            body: formData
+                        });
+
+                        if (response.ok) {
+                            this.showAlert('success', 'Reset Successful', `Successfully reset ${this.selectedCandidates.length} candidate(s) to initial state.`);
+                            setTimeout(() => {
+                                location.reload();
+                            }, 2000);
+                        } else {
+                            this.showAlert('error', 'Reset Failed', 'Error resetting candidates. Please try again.');
+                        }
+                    } catch (error) {
+                        console.error('Error:', error);
+                        this.showAlert('error', 'Reset Failed', 'Error resetting candidates. Please try again.');
+                    }
+                }
+            );
+        },
+
+        async onboardCandidate(candidate) {
+            this.showConfirm(
+                'onboard',
+                `Onboard ${candidate.name}?`,
+                'This will mark the candidate as onboarded and send them a welcome email.',
+                'Onboard Candidate',
+                async () => {
+                    try {
+                        const formData = new FormData();
+                        formData.append('csrfmiddlewaretoken', '{{ csrf_token }}');
+                        formData.append('candidate_id', candidate.id);
+
+                        const response = await fetch('{% url "onboard_candidate" %}', {
+                            method: 'POST',
+                            body: formData
+                        });
+
+                        if (response.ok) {
+                            this.showAlert('success', 'Onboarding Successful', `Successfully onboarded ${candidate.name} and sent welcome email.`);
+                            setTimeout(() => {
+                                location.reload();
+                            }, 2000);
+                        } else {
+                            this.showAlert('error', 'Onboarding Failed', 'Error onboarding candidate. Please try again.');
+                        }
+                    } catch (error) {
+                        console.error('Error:', error);
+                        this.showAlert('error', 'Onboarding Failed', 'Error onboarding candidate. Please try again.');
+                    }
+                }
+            );
+        },
+
+        // Alert system methods
+        showAlert(type, title, message) {
+            this.alert = {
+                show: true,
+                type: type,
+                title: title,
+                message: message
+            };
+            
+            // Auto-hide after 5 seconds
+            setTimeout(() => {
+                this.hideAlert();
+            }, 5000);
+        },
+
+        hideAlert() {
+            this.alert.show = false;
+        },
+
+        // Confirmation dialog methods
+        showConfirm(type, title, message, confirmText, onConfirm) {
+            this.confirmDialog = {
+                show: true,
+                type: type,
+                title: title,
+                message: message,
+                confirmText: confirmText,
+                onConfirm: onConfirm
+            };
+        },
+
+        confirmAction() {
+            if (this.confirmDialog.onConfirm) {
+                this.confirmDialog.onConfirm();
+            }
+            this.cancelConfirm();
+        },
+
+        cancelConfirm() {
+            this.confirmDialog.show = false;
+            this.confirmDialog.onConfirm = null;
+        }
+    }
+}
+</script>
+
+{% endblock %}

@@ -39,7 +39,7 @@ app.add_middleware(
 
 class EmailRequest(BaseModel):
     candidate_ids: List[int]
-    email_type: str  # "selection" or "rejection"
+    email_type: str  # "selection", "rejection", or "onboarding"
     hr_user_id: int  # ID of the HR user sending emails
     interview_round: str = "initial"  # For selection emails: "technical", "behavioral", "final"
     
@@ -435,6 +435,163 @@ def create_rejection_email(candidate_name: str, position: str, company: str):
 
     return subject, body
 
+def create_onboarding_email(candidate_name: str, position: str, company: str, start_date: str = None, hr_contact: str = None):
+    """Create beautiful onboarding welcome email template"""
+    subject = f"Welcome to {company} - Let's Get Started!"
+    
+    # Default start date if not provided
+    if not start_date:
+        start_date = "Your start date will be communicated shortly"
+    
+    # Default HR contact if not provided
+    if not hr_contact:
+        hr_contact = f"{company} HR Team"
+    
+    body = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to {company}</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f8fafc; line-height: 1.6;">
+    <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+        
+        <!-- Header with Celebration Gradient -->
+        <div style="background: linear-gradient(135deg, #10b981 0%, #3b82f6 50%, #8b5cf6 100%); padding: 40px 30px; text-align: center; border-radius: 12px 12px 0 0;">
+            <div style="background-color: rgba(255, 255, 255, 0.15); backdrop-filter: blur(10px); padding: 25px; border-radius: 16px; display: inline-block;">
+                <div style="font-size: 36px; margin-bottom: 10px; color: #ffffff;">&#127881;</div>
+                <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: 800; letter-spacing: -0.025em;">
+                    Welcome to the Team!
+                </h1>
+                <p style="color: rgba(255, 255, 255, 0.9); margin: 15px 0 0 0; font-size: 18px; font-weight: 500;">
+                    We're excited to have you join us
+                </p>
+            </div>
+        </div>
+        
+        <!-- Main Content -->
+        <div style="padding: 40px 30px;">
+            
+            <!-- Welcome Message -->
+            <div style="text-align: center; margin-bottom: 35px;">
+                <div style="background: linear-gradient(135deg, #10b981 0%, #3b82f6 100%); border-radius: 50%; width: 90px; height: 90px; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center;">
+                    <span style="font-size: 36px; color: white;">&#128075;</span>
+                </div>
+                <h2 style="color: #1f2937; margin: 0; font-size: 26px; font-weight: 700;">
+                    Congratulations, {candidate_name}!
+                </h2>
+                <p style="color: #6b7280; margin: 10px 0 0 0; font-size: 16px;">
+                    You're officially part of the {company} family
+                </p>
+            </div>
+            
+            <!-- Personal Welcome -->
+            <div style="background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); border-left: 4px solid #0ea5e9; padding: 25px; border-radius: 12px; margin-bottom: 30px;">
+                <p style="color: #374151; margin: 0 0 15px 0; font-size: 17px; font-weight: 600;">
+                    Dear {candidate_name},
+                </p>
+                <p style="color: #4b5563; margin: 0 0 15px 0; font-size: 16px; line-height: 1.7;">
+                    We are thrilled to officially welcome you to <strong style="color: #0ea5e9;">{company}</strong> as our new <strong style="color: #0ea5e9;">{position}</strong>! 
+                </p>
+                <p style="color: #4b5563; margin: 0; font-size: 16px; line-height: 1.7;">
+                    Your skills, experience, and enthusiasm impressed us throughout the interview process, and we're confident you'll make a significant impact on our team.
+                </p>
+            </div>
+            
+            <!-- What's Next Section -->
+            <div style="background-color: #ffffff; border: 2px solid #e5e7eb; border-radius: 12px; padding: 30px; margin-bottom: 30px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);">
+                <h3 style="color: #1f2937; margin: 0 0 20px 0; font-size: 20px; font-weight: 700; display: flex; align-items: center;">
+                    <span style="background: linear-gradient(135deg, #10b981 0%, #3b82f6 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-right: 10px;">&#128196;</span>
+                    What's Next?
+                </h3>
+                
+                <div style="space-y: 15px;">
+                    <div style="display: flex; align-items: flex-start; margin-bottom: 15px;">
+                        <div style="background-color: #dcfce7; color: #166534; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; margin-right: 12px; font-weight: 600; font-size: 12px; flex-shrink: 0; margin-top: 2px;">1</div>
+                        <div>
+                            <h4 style="color: #374151; margin: 0 0 5px 0; font-size: 16px; font-weight: 600;">HR Onboarding Package</h4>
+                            <p style="color: #6b7280; margin: 0; font-size: 14px; line-height: 1.5;">You'll receive a comprehensive onboarding package with all necessary forms and documentation within 24 hours.</p>
+                        </div>
+                    </div>
+                    
+                    <div style="display: flex; align-items: flex-start; margin-bottom: 15px;">
+                        <div style="background-color: #dbeafe; color: #1e40af; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; margin-right: 12px; font-weight: 600; font-size: 12px; flex-shrink: 0; margin-top: 2px;">2</div>
+                        <div>
+                            <h4 style="color: #374151; margin: 0 0 5px 0; font-size: 16px; font-weight: 600;">Start Date Confirmation</h4>
+                            <p style="color: #6b7280; margin: 0; font-size: 14px; line-height: 1.5;">{start_date}</p>
+                        </div>
+                    </div>
+                    
+                    <div style="display: flex; align-items: flex-start;">
+                        <div style="background-color: #fef3c7; color: #92400e; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; margin-right: 12px; font-weight: 600; font-size: 12px; flex-shrink: 0; margin-top: 2px;">3</div>
+                        <div>
+                            <h4 style="color: #374151; margin: 0 0 5px 0; font-size: 16px; font-weight: 600;">First Day Preparation</h4>
+                            <p style="color: #6b7280; margin: 0; font-size: 14px; line-height: 1.5;">We'll send you a detailed first-day guide including office location, parking information, and what to expect.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Contact Information -->
+            <div style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border-radius: 12px; padding: 25px; margin-bottom: 30px; text-align: center;">
+                <h3 style="color: #1f2937; margin: 0 0 15px 0; font-size: 18px; font-weight: 600;">
+                    Questions? We're Here to Help!
+                </h3>
+                <p style="color: #4b5563; margin: 0 0 10px 0; font-size: 15px;">
+                    Your point of contact: <strong style="color: #3b82f6;">{hr_contact}</strong>
+                </p>
+                <p style="color: #6b7280; margin: 0; font-size: 14px;">
+                    Feel free to reach out with any questions or concerns
+                </p>
+            </div>
+            
+            <!-- Welcome Gift/Culture -->
+            <div style="background: linear-gradient(135deg, #fef7ff 0%, #f3e8ff 100%); border-radius: 12px; padding: 25px; margin-bottom: 30px; text-align: center;">
+                <div style="font-size: 28px; margin-bottom: 15px; color: #8b5cf6;">&#127873;</div>
+                <h3 style="color: #1f2937; margin: 0 0 15px 0; font-size: 18px; font-weight: 600;">
+                    Something Special is Coming!
+                </h3>
+                <p style="color: #4b5563; margin: 0; font-size: 15px; line-height: 1.6;">
+                    Keep an eye out for your welcome package! We have some exciting {company} goodies and resources heading your way.
+                </p>
+            </div>
+            
+            <div style="text-align: center; margin-bottom: 20px;">
+                <p style="color: #374151; margin: 0 0 15px 0; font-size: 17px; font-weight: 600;">
+                    Welcome aboard! We can't wait to see what we'll accomplish together.
+                </p>
+                <p style="color: #6b7280; margin: 0; font-size: 15px;">
+                    Here's to new beginnings and exciting adventures ahead!
+                </p>
+            </div>
+        </div>
+        
+        <!-- Footer -->
+        <div style="background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); padding: 30px; text-align: center; border-top: 1px solid #e5e7eb;">
+            <p style="color: #374151; margin: 0 0 10px 0; font-size: 17px; font-weight: 600;">
+                With warm regards,
+            </p>
+            <p style="color: #3b82f6; margin: 0 0 20px 0; font-size: 16px; font-weight: 600;">
+                The {company} Team
+            </p>
+            
+            <!-- Brand Footer -->
+            <div style="border-top: 1px solid #e5e7eb; padding-top: 20px; margin-top: 20px;">
+                <div style="background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; font-size: 18px; font-weight: 700; margin-bottom: 5px;">
+                    ShortlistPro
+                </div>
+                <p style="color: #9ca3af; margin: 0; font-size: 12px;">
+                    AI-Powered Recruitment Platform • Making Great Hires
+                </p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>"""
+
+    return subject, body
+
 def send_email(to_email: str, subject: str, body: str):
     """Send HTML email using SMTP"""
     try:
@@ -555,8 +712,10 @@ async def send_candidate_emails(request: EmailRequest):
                         subject, body = create_selection_email(candidate_name, position, company, request.hr_user_id, jd_id)
                 elif request.email_type == "rejection":
                     subject, body = create_rejection_email(candidate_name, position, company)
+                elif request.email_type == "onboarding":
+                    subject, body = create_onboarding_email(candidate_name, position, company)
                 else:
-                    raise HTTPException(status_code=400, detail="Invalid email type. Use 'selection' or 'rejection'")
+                    raise HTTPException(status_code=400, detail="Invalid email type. Use 'selection', 'rejection', or 'onboarding'")
                 
                 print(f"DEBUG EMAIL AGENT: Created {request.interview_round} {request.email_type} email for {candidate_name}")
                 
