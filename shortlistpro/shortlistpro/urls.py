@@ -19,12 +19,19 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
+from home import views as home_views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', include('home.urls')),
     path('accounts/', include('django.contrib.auth.urls')),  # ✅ built-in login/logout views
-    path('accounts/', include('registration.backends.simple.urls')),  # ✅ django-registration
+    
+    # Override registration URL to use our custom OTP version
+    path('accounts/register/', home_views.custom_register_view, name='registration_register'),
+    path('accounts/verify-otp/<int:user_id>/', home_views.verify_otp_view, name='verify_otp'),
+    path('accounts/resend-otp/<int:user_id>/', home_views.resend_otp_view, name='resend_otp'),
+    
+    path('accounts/', include('registration.backends.simple.urls')),  # ✅ django-registration (other URLs)
 ]
 
 # Serve media files during development

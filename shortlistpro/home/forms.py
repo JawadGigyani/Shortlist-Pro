@@ -73,6 +73,9 @@ class CustomRegistrationForm(RegistrationForm):
         user.first_name = self.cleaned_data['first_name']
         user.last_name = self.cleaned_data['last_name']
         user.email = self.cleaned_data['email']  # make sure you save email
+        
+        # Make user inactive until OTP verification
+        user.is_active = False
 
         if commit:
             user.save()

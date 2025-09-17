@@ -48,6 +48,11 @@ class EmailRequest(BaseModel):
     interviewDateTime: str = None  # ISO format datetime string
     interviewLocation: str = None  # Address for onsite or "default_office_address"
 
+class OTPEmailRequest(BaseModel):
+    to_email: str
+    otp_code: str
+    user_name: str = "User"
+
 def get_db_connection():
     """Get database connection"""
     return psycopg2.connect(**DB_CONFIG, cursor_factory=RealDictCursor)
@@ -1331,6 +1336,125 @@ def create_final_interview_email(candidate_name: str, position: str, company: st
 </html>"""
 
     return subject, body
+
+def create_otp_email(to_email: str, otp_code: str, user_name: str = "User"):
+    """Create beautiful OTP verification email template"""
+    subject = "Your Verification Code - ShortlistPro"
+    
+    body = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verify Your Email - ShortlistPro</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f8fafc; line-height: 1.6;">
+    <div style="max-width: 600px; margin: 0 auto; background-color: #ffffff; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+        
+        <!-- Header with Gradient -->
+        <div style="background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%); padding: 40px 30px; text-align: center; border-radius: 12px 12px 0 0;">
+            <div style="background-color: rgba(255, 255, 255, 0.15); backdrop-filter: blur(10px); padding: 20px; border-radius: 12px; display: inline-block;">
+                <h1 style="color: #ffffff; margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -0.025em;">
+                    Welcome to ShortlistPro!
+                </h1>
+                <p style="color: rgba(255, 255, 255, 0.9); margin: 10px 0 0 0; font-size: 16px;">
+                    Verify your email to get started
+                </p>
+            </div>
+        </div>
+        
+        <!-- Main Content -->
+        <div style="padding: 40px 30px;">
+            <div style="text-align: center; margin-bottom: 30px;">
+                <div style="background-color: #eff6ff; border: 2px solid #3b82f6; border-radius: 50%; width: 80px; height: 80px; margin: 0 auto 20px; line-height: 76px; text-align: center;">
+                    <span style="font-size: 32px;">🔐</span>
+                </div>
+                <h2 style="color: #1f2937; margin: 0; font-size: 24px; font-weight: 600;">
+                    Email Verification Required
+                </h2>
+            </div>
+
+            <div style="text-align: center; margin-bottom: 30px;">
+                <p style="color: #4b5563; margin: 0 0 15px 0; font-size: 16px;">
+                    Hi {user_name}, welcome to ShortlistPro! Please use the verification code below to activate your account:
+                </p>
+            </div>
+
+            <!-- OTP Code Box -->
+            <div style="text-align: center; margin: 30px 0;">
+                <div style="background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%); border: 2px solid #3b82f6; border-radius: 12px; padding: 25px; display: inline-block; box-shadow: 0 4px 6px rgba(59, 130, 246, 0.1);">
+                    <p style="color: #3b82f6; margin: 0 0 10px 0; font-size: 14px; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase;">
+                        Your Verification Code
+                    </p>
+                    <h2 style="color: #1e40af; margin: 0; font-size: 36px; font-weight: 700; letter-spacing: 8px; font-family: monospace;">
+                        {otp_code}
+                    </h2>
+                </div>
+            </div>
+
+            <div style="text-align: center; margin-bottom: 30px;">
+                <p style="color: #6b7280; margin: 0; font-size: 14px;">
+                    ⏰ This code will expire in <strong>10 minutes</strong>
+                </p>
+            </div>
+
+            <!-- Instructions -->
+            <div style="background-color: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 20px; margin-bottom: 30px;">
+                <h3 style="color: #374151; margin: 0 0 15px 0; font-size: 16px; font-weight: 600;">
+                    📱 Easy Verification Steps:
+                </h3>
+                <ol style="color: #6b7280; margin: 0; padding-left: 20px; font-size: 14px;">
+                    <li style="margin-bottom: 8px;">Return to the ShortlistPro registration page</li>
+                    <li style="margin-bottom: 8px;">Enter the 6-digit code shown above</li>
+                    <li style="margin-bottom: 8px;">Click "Verify Email" to complete your registration</li>
+                </ol>
+            </div>
+
+            <div style="text-align: center; margin-bottom: 20px;">
+                <p style="color: #6b7280; margin: 0; font-size: 14px;">
+                    If you didn't create an account with ShortlistPro, please ignore this email.
+                </p>
+            </div>
+        </div>
+        
+        <!-- Footer -->
+        <div style="background-color: #f9fafb; padding: 30px; text-align: center; border-radius: 0 0 12px 12px;">
+            <div style="background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; font-size: 18px; font-weight: 700; margin-bottom: 5px;">
+                ShortlistPro
+            </div>
+            <p style="color: #9ca3af; margin: 0; font-size: 12px;">
+                AI-Powered Recruitment Platform
+            </p>
+        </div>
+    </div>
+</body>
+</html>"""
+
+    return subject, body
+
+@app.post("/send-otp")
+async def send_otp_email(request: OTPEmailRequest):
+    """Send OTP verification email"""
+    try:
+        print(f"DEBUG EMAIL AGENT: Sending OTP to {request.to_email} with code {request.otp_code}")
+        
+        # Create OTP email
+        subject, body = create_otp_email(request.to_email, request.otp_code, request.user_name)
+        
+        # Send using existing SMTP setup
+        if send_email(request.to_email, subject, body):
+            print(f"DEBUG EMAIL AGENT: OTP email sent successfully to {request.to_email}")
+            return {
+                "status": "success", 
+                "message": f"OTP email sent successfully to {request.to_email}"
+            }
+        else:
+            print(f"ERROR EMAIL AGENT: Failed to send OTP email to {request.to_email}")
+            raise HTTPException(status_code=500, detail="Failed to send OTP email")
+        
+    except Exception as e:
+        print(f"CRITICAL ERROR EMAIL AGENT: OTP email error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to send OTP email: {str(e)}")
 
 @app.get("/health")
 async def health_check():

@@ -19,7 +19,7 @@
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2-2z"></path>
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5a2 2 0 012-2h4a2 2 0 012 2v4H8V5z"></path>
         </svg>
-        Dashboard
+        Overview
       </a>
       <a href="{% url 'job_descriptions' %}" class="group flex items-center px-4 py-3 rounded-xl font-medium transition-all duration-200 text-gray-700 hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 hover:text-blue-600">
         <svg class="w-5 h-5 mr-3 text-gray-500 group-hover:text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -43,13 +43,13 @@
         <svg class="w-5 h-5 mr-3 {% if request.resolver_match.url_name == 'interviews' %}text-white{% else %}text-gray-500 group-hover:text-blue-500{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"></path>
         </svg>
-        Interviews & Evaluations
+        Interviews
       </a>
       <a href="{% url 'interview_pipeline' %}" class="group flex items-center px-4 py-3 rounded-xl font-medium transition-all duration-200 {% if request.resolver_match.url_name == 'interview_pipeline' %}bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg shadow-blue-500/25{% else %}text-gray-700 hover:bg-gradient-to-r hover:from-blue-50 hover:to-purple-50 hover:text-blue-600{% endif %}">
         <svg class="w-5 h-5 mr-3 {% if request.resolver_match.url_name == 'interview_pipeline' %}text-white{% else %}text-gray-500 group-hover:text-blue-500{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v6a2 2 0 002 2h2m2 0h10a2 2 0 002-2V7a2 2 0 00-2-2H11m-2 0V5a2 2 0 012-2h6a2 2 0 012 2v4.586a1 1 0 01-.293.707L15 12l3.707 3.707a1 1 0 01.293.707V21a2 2 0 01-2 2H11a2 2 0 01-2-2v-4.586a1 1 0 01.293-.707L13 12 9.293 8.293A1 1 0 019 7.586V5z"></path>
         </svg>
-        Interview Pipeline
+        Candidate Pipeline
       </a>
     </nav>
   </aside>

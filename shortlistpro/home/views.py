@@ -30,20 +30,21 @@ import logging
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.contrib.auth.forms import PasswordChangeForm
-from django.contrib.auth import update_session_auth_hash
+from django.contrib.auth import update_session_auth_hash, login
 from django.shortcuts import redirect, get_object_or_404
 from django.http import JsonResponse
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
 from django.db import IntegrityError
-from .forms import UserForm, ProfileForm, JobDescriptionForm, ResumeForm
-from .models import Resume, Shortlisted, Interview, JobDescription, MatchingResult, InterviewQuestions, InterviewSession, InterviewRecording, InterviewMessage, InterviewStage, CandidatePipeline
+from .forms import UserForm, ProfileForm, JobDescriptionForm, ResumeForm, CustomRegistrationForm
+from .models import Resume, Shortlisted, Interview, JobDescription, MatchingResult, InterviewQuestions, InterviewSession, InterviewRecording, InterviewMessage, InterviewStage, CandidatePipeline, EmailVerificationOTP
 from django.utils import timezone
 from datetime import timedelta
 from django.utils import timezone
 from datetime import timedelta
 import json
 import logging
+from .utils import generate_otp, can_resend_otp, validate_otp_format
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -53,6 +54,159 @@ FASTAPI_MATCHING_URL = "http://localhost:8001/match-resume"
 FASTAPI_INTERVIEW_QUESTIONS_URL = "http://localhost:8004/generate-questions"
 FASTAPI_INTERVIEW_EVALUATION_URL = "http://localhost:8002/evaluate-interview"
 FASTAPI_TIMEOUT = 60  # Increased timeout for AI processing
+
+
+# OTP Email Verification Views
+def custom_register_view(request):
+    """Custom registration view with OTP email verification"""
+    if request.method == 'POST':
+        form = CustomRegistrationForm(request.POST)
+        if form.is_valid():
+            # Save user (will be inactive due to our form modification)
+            user = form.save()
+            
+            # Generate OTP
+            otp_code = generate_otp()
+            
+            # Create or update EmailVerificationOTP record
+            email_otp, created = EmailVerificationOTP.objects.get_or_create(
+                user=user,
+                defaults={
+                    'email': user.email,
+                    'otp_code': otp_code,
+                    'attempts': 0,
+                    'is_verified': False
+                }
+            )
+            
+            # If record exists, update it with new OTP
+            if not created:
+                email_otp.otp_code = otp_code
+                email_otp.created_at = timezone.now()
+                email_otp.attempts = 0
+                email_otp.is_verified = False
+                email_otp.save()
+            
+            # Send OTP email via email agent
+            try:
+                payload = {
+                    "to_email": user.email,
+                    "otp_code": otp_code,
+                    "user_name": user.first_name or user.username
+                }
+                
+                response = requests.post('http://localhost:8003/send-otp', json=payload, timeout=10)
+                
+                if response.status_code == 200:
+                    messages.success(request, 
+                        f'Registration successful! We\'ve sent a verification code to {user.email}. Please check your email and enter the code below.')
+                    return redirect('verify_otp', user_id=user.id)
+                else:
+                    messages.error(request, 'Failed to send verification email. Please try again.')
+                    user.delete()  # Clean up if email fails
+                    return render(request, 'registration/registration_form.html', {'form': form})
+                    
+            except requests.RequestException as e:
+                logger.error(f"Failed to send OTP email: {str(e)}")
+                messages.error(request, 'Email service unavailable. Please try again later.')
+                user.delete()  # Clean up if email service fails
+                return render(request, 'registration/registration_form.html', {'form': form})
+        else:
+            messages.error(request, 'Please correct the errors below.')
+    else:
+        form = CustomRegistrationForm()
+    
+    return render(request, 'registration/registration_form.html', {'form': form})
+
+
+def verify_otp_view(request, user_id):
+    """View for users to enter and verify OTP"""
+    try:
+        user = get_object_or_404(EmailVerificationOTP, user_id=user_id, is_verified=False)
+    except:
+        messages.error(request, 'Invalid verification request.')
+        return redirect('registration_register')
+    
+    # Check if OTP has expired
+    if user.is_expired():
+        messages.error(request, 'Your verification code has expired. Please request a new one.')
+        return redirect('resend_otp', user_id=user_id)
+    
+    if request.method == 'POST':
+        otp_code = request.POST.get('otp', '').strip()
+        
+        # Validate OTP format
+        is_valid, error_message = validate_otp_format(otp_code)
+        if not is_valid:
+            messages.error(request, error_message)
+            return render(request, 'registration/verify_otp.html', {'user_email': user.email, 'user_id': user_id})
+        
+        # Verify OTP
+        success, message = user.verify_otp(otp_code)
+        
+        if success:
+            messages.success(request, 'Email verified successfully! Welcome to ShortlistPro!')
+            # Auto-login the user with explicit backend
+            from django.contrib.auth import authenticate
+            
+            # Use the default ModelBackend for login
+            user.user.backend = 'django.contrib.auth.backends.ModelBackend'
+            login(request, user.user)
+            return redirect('dashboard_home')
+        else:
+            messages.error(request, message)
+            
+            # If too many attempts, redirect to resend
+            if not user.can_attempt():
+                return redirect('resend_otp', user_id=user_id)
+    
+    return render(request, 'registration/verify_otp.html', {
+        'user_email': user.email, 
+        'user_id': user_id,
+        'user_name': user.user.first_name or user.user.username
+    })
+
+
+def resend_otp_view(request, user_id):
+    """View to resend OTP code"""
+    try:
+        email_otp = get_object_or_404(EmailVerificationOTP, user_id=user_id, is_verified=False)
+    except:
+        messages.error(request, 'Invalid request.')
+        return redirect('registration_register')
+    
+    # Check rate limiting (1 minute cooldown)
+    if not can_resend_otp(email_otp.created_at, cooldown_minutes=1):
+        messages.error(request, 'Please wait 1 minute before requesting a new code.')
+        return redirect('verify_otp', user_id=user_id)
+    
+    # Generate new OTP
+    new_otp = generate_otp()
+    email_otp.otp_code = new_otp
+    email_otp.created_at = timezone.now()
+    email_otp.attempts = 0
+    email_otp.save()
+    
+    # Send new OTP via email agent
+    try:
+        payload = {
+            "to_email": email_otp.email,
+            "otp_code": new_otp,
+            "user_name": email_otp.user.first_name or email_otp.user.username
+        }
+        
+        response = requests.post('http://localhost:8003/send-otp', json=payload, timeout=10)
+        
+        if response.status_code == 200:
+            messages.success(request, 'New verification code sent! Please check your email.')
+        else:
+            messages.error(request, 'Failed to send verification email. Please try again.')
+            
+    except requests.RequestException as e:
+        logger.error(f"Failed to resend OTP email: {str(e)}")
+        messages.error(request, 'Email service unavailable. Please try again later.')
+    
+    return redirect('verify_otp', user_id=user_id)
 
 
 def call_fastapi_interview_questions_service(matching_result):

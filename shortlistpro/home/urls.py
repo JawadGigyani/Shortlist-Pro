@@ -50,6 +50,12 @@ urlpatterns = [
     path('voice-interview/<int:matching_result_id>/complete/', views.interview_completion, name='interview_completion'),
     # Debug view to check database status
     path('debug/check-status/<str:email>/', views.debug_check_status, name='debug_check_status'),
+    
+    # OTP Email Verification URLs
+    path('register/', views.custom_register_view, name='custom_register'),
+    path('verify-otp/<int:user_id>/', views.verify_otp_view, name='verify_otp'),
+    path('resend-otp/<int:user_id>/', views.resend_otp_view, name='resend_otp'),
+    
     # path('register/', views.register, name='register'),
     # path('login/', auth_views.LoginView.as_view(template_name='registration/login.html'), name='login'),
 ]

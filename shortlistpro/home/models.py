@@ -1,5 +1,7 @@
 from django.contrib.auth.models import User
 from django.db import models
+from django.utils import timezone
+from datetime import timedelta
 
 class Profile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
@@ -10,6 +12,55 @@ class Profile(models.Model):
 
     def __str__(self):
         return f"{self.user.username} Profile"
+
+
+class EmailVerificationOTP(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='email_otp')
+    email = models.EmailField()
+    otp_code = models.CharField(max_length=6)
+    created_at = models.DateTimeField(auto_now_add=True)
+    attempts = models.IntegerField(default=0)
+    is_verified = models.BooleanField(default=False)
+    
+    class Meta:
+        verbose_name = "Email Verification OTP"
+        verbose_name_plural = "Email Verification OTPs"
+    
+    def is_expired(self):
+        """Check if OTP is expired (10 minutes)"""
+        expiry_time = self.created_at + timedelta(minutes=10)
+        return timezone.now() > expiry_time
+    
+    def can_attempt(self):
+        """Check if user can still attempt verification (max 3 attempts)"""
+        return self.attempts < 3
+    
+    def increment_attempts(self):
+        """Increment failed attempts"""
+        self.attempts += 1
+        self.save()
+    
+    def verify_otp(self, otp_code):
+        """Verify OTP code and return success/error message"""
+        if self.is_expired():
+            return False, "OTP has expired. Please request a new one."
+        
+        if not self.can_attempt():
+            return False, "Too many failed attempts. Please request a new OTP."
+        
+        if self.otp_code == otp_code:
+            self.is_verified = True
+            self.user.is_active = True  # Activate the user account
+            self.save()
+            self.user.save()
+            return True, "Email verified successfully!"
+        else:
+            self.increment_attempts()
+            remaining = 3 - self.attempts
+            return False, f"Invalid OTP code. {remaining} attempts remaining."
+    
+    def __str__(self):
+        return f"OTP for {self.email} - {'Verified' if self.is_verified else 'Pending'}"
 
 
 # --- Dashboard Data Models ---
