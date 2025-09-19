@@ -47,6 +47,7 @@ class EmailRequest(BaseModel):
     interviewType: str = None  # "onsite" or "online"
     interviewDateTime: str = None  # ISO format datetime string
     interviewLocation: str = None  # Address for onsite or "default_office_address"
+    id_type: str = "matching_result"  # NEW: "matching_result" or "interview_recording"
 
 class OTPEmailRequest(BaseModel):
     to_email: str
@@ -57,38 +58,60 @@ def get_db_connection():
     """Get database connection"""
     return psycopg2.connect(**DB_CONFIG, cursor_factory=RealDictCursor)
 
-def get_candidate_data(interview_recording_ids: List[int]):
-    """Fetch candidate data from database using Django table names via InterviewRecording"""
+def get_candidate_data(ids: List[int], id_type: str = "matching_result"):
+    """Fetch candidate data from database using matching result IDs or interview recording IDs"""
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        
-        query = """
-        SELECT 
-            ir.id as interview_recording_id,
-            mr.id as matching_result_id,
-            r.candidate_name,
-            r.email,
-            jd.title as position,
-            jd.id as jd_id,
-            p.company_name as company
-        FROM home_interviewrecording ir
-        JOIN home_matchingresult mr ON ir.matching_result_id = mr.id
-        JOIN home_resume r ON mr.resume_id = r.id
-        JOIN home_jobdescription jd ON mr.job_description_id = jd.id
-        JOIN auth_user u ON jd.user_id = u.id
-        JOIN home_profile p ON u.id = p.user_id
-        WHERE ir.id = ANY(%s)
-        """
-        
-        cursor.execute(query, (interview_recording_ids,))
+        if id_type == "matching_result":
+            query = """
+            SELECT 
+                mr.id as matching_result_id,
+                r.candidate_name,
+                r.email,
+                jd.title as position,
+                jd.id as jd_id,
+                p.company_name as company,
+                mr.overall_score,
+                mr.status
+            FROM home_matchingresult mr
+            JOIN home_resume r ON mr.resume_id = r.id
+            JOIN home_jobdescription jd ON mr.job_description_id = jd.id
+            JOIN auth_user u ON jd.user_id = u.id
+            JOIN home_profile p ON u.id = p.user_id
+            WHERE mr.id = ANY(%s)
+            """
+            cursor.execute(query, (ids,))
+        elif id_type == "interview_recording":
+            query = """
+            SELECT 
+                mr.id as matching_result_id,
+                r.candidate_name,
+                r.email,
+                jd.title as position,
+                jd.id as jd_id,
+                p.company_name as company,
+                mr.overall_score,
+                mr.status,
+                ir.id as interview_recording_id
+            FROM home_interviewrecording ir
+            JOIN home_matchingresult mr ON ir.matching_result_id = mr.id
+            JOIN home_resume r ON mr.resume_id = r.id
+            JOIN home_jobdescription jd ON mr.job_description_id = jd.id
+            JOIN auth_user u ON jd.user_id = u.id
+            JOIN home_profile p ON u.id = p.user_id
+            WHERE ir.id = ANY(%s)
+            """
+            cursor.execute(query, (ids,))
+        else:
+            raise HTTPException(status_code=400, detail="Invalid id_type")
         candidates = cursor.fetchall()
-        
         cursor.close()
         conn.close()
-        
+        print(f"DEBUG EMAIL AGENT: Found {len(candidates)} candidates for IDs {ids} (type: {id_type})")
         return candidates
     except Exception as e:
+        print(f"DEBUG EMAIL AGENT: Database error in get_candidate_data: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Database error: {str(e)}")
 
 def get_hr_user_profile(hr_user_id: int):
@@ -465,7 +488,7 @@ def create_onboarding_email(candidate_name: str, position: str, company: str, st
         <!-- Header with Celebration Gradient -->
         <div style="background: linear-gradient(135deg, #10b981 0%, #3b82f6 50%, #8b5cf6 100%); padding: 40px 30px; text-align: center; border-radius: 12px 12px 0 0;">
             <div style="background-color: rgba(255, 255, 255, 0.15); backdrop-filter: blur(10px); padding: 25px; border-radius: 16px; display: inline-block;">
-                <div style="font-size: 36px; margin-bottom: 10px; color: #ffffff;">&#127881;</div>
+                <div style="font-size: 36px; margin-bottom: 10px; color: #ffffff; line-height: 1;">🎉</div>
                 <h1 style="color: #ffffff; margin: 0; font-size: 32px; font-weight: 800; letter-spacing: -0.025em;">
                     Welcome to the Team!
                 </h1>
@@ -480,8 +503,8 @@ def create_onboarding_email(candidate_name: str, position: str, company: str, st
             
             <!-- Welcome Message -->
             <div style="text-align: center; margin-bottom: 35px;">
-                <div style="background: linear-gradient(135deg, #10b981 0%, #3b82f6 100%); border-radius: 50%; width: 90px; height: 90px; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center;">
-                    <span style="font-size: 36px; color: white;">&#128075;</span>
+                <div style="background: linear-gradient(135deg, #10b981 0%, #3b82f6 100%); border-radius: 50%; width: 90px; height: 90px; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center; font-size: 36px; line-height: 1;">
+                    <span style="color: white;">👋</span>
                 </div>
                 <h2 style="color: #1f2937; margin: 0; font-size: 26px; font-weight: 700;">
                     Congratulations, {candidate_name}!
@@ -507,13 +530,13 @@ def create_onboarding_email(candidate_name: str, position: str, company: str, st
             <!-- What's Next Section -->
             <div style="background-color: #ffffff; border: 2px solid #e5e7eb; border-radius: 12px; padding: 30px; margin-bottom: 30px; box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);">
                 <h3 style="color: #1f2937; margin: 0 0 20px 0; font-size: 20px; font-weight: 700; display: flex; align-items: center;">
-                    <span style="background: linear-gradient(135deg, #10b981 0%, #3b82f6 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-right: 10px;">&#128196;</span>
+                    <span style="background: linear-gradient(135deg, #10b981 0%, #3b82f6 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-right: 10px; font-size: 20px; line-height: 1;">📄</span>
                     What's Next?
                 </h3>
                 
-                <div style="space-y: 15px;">
+                <div>
                     <div style="display: flex; align-items: flex-start; margin-bottom: 15px;">
-                        <div style="background-color: #dcfce7; color: #166534; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; margin-right: 12px; font-weight: 600; font-size: 12px; flex-shrink: 0; margin-top: 2px;">1</div>
+                        <div style="background-color: #dcfce7; color: #166534; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; margin-right: 12px; font-weight: 600; font-size: 14px; flex-shrink: 0; line-height: 1;">1</div>
                         <div>
                             <h4 style="color: #374151; margin: 0 0 5px 0; font-size: 16px; font-weight: 600;">HR Onboarding Package</h4>
                             <p style="color: #6b7280; margin: 0; font-size: 14px; line-height: 1.5;">You'll receive a comprehensive onboarding package with all necessary forms and documentation within 24 hours.</p>
@@ -521,7 +544,7 @@ def create_onboarding_email(candidate_name: str, position: str, company: str, st
                     </div>
                     
                     <div style="display: flex; align-items: flex-start; margin-bottom: 15px;">
-                        <div style="background-color: #dbeafe; color: #1e40af; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; margin-right: 12px; font-weight: 600; font-size: 12px; flex-shrink: 0; margin-top: 2px;">2</div>
+                        <div style="background-color: #dbeafe; color: #1e40af; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; margin-right: 12px; font-weight: 600; font-size: 14px; flex-shrink: 0; line-height: 1;">2</div>
                         <div>
                             <h4 style="color: #374151; margin: 0 0 5px 0; font-size: 16px; font-weight: 600;">Start Date Confirmation</h4>
                             <p style="color: #6b7280; margin: 0; font-size: 14px; line-height: 1.5;">{start_date}</p>
@@ -529,7 +552,7 @@ def create_onboarding_email(candidate_name: str, position: str, company: str, st
                     </div>
                     
                     <div style="display: flex; align-items: flex-start;">
-                        <div style="background-color: #fef3c7; color: #92400e; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; margin-right: 12px; font-weight: 600; font-size: 12px; flex-shrink: 0; margin-top: 2px;">3</div>
+                        <div style="background-color: #fef3c7; color: #92400e; border-radius: 50%; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; margin-right: 12px; font-weight: 600; font-size: 14px; flex-shrink: 0; line-height: 1;">3</div>
                         <div>
                             <h4 style="color: #374151; margin: 0 0 5px 0; font-size: 16px; font-weight: 600;">First Day Preparation</h4>
                             <p style="color: #6b7280; margin: 0; font-size: 14px; line-height: 1.5;">We'll send you a detailed first-day guide including office location, parking information, and what to expect.</p>
@@ -553,7 +576,7 @@ def create_onboarding_email(candidate_name: str, position: str, company: str, st
             
             <!-- Welcome Gift/Culture -->
             <div style="background: linear-gradient(135deg, #fef7ff 0%, #f3e8ff 100%); border-radius: 12px; padding: 25px; margin-bottom: 30px; text-align: center;">
-                <div style="font-size: 28px; margin-bottom: 15px; color: #8b5cf6;">&#127873;</div>
+                <div style="font-size: 28px; margin-bottom: 15px; color: #8b5cf6; line-height: 1;">🎁</div>
                 <h3 style="color: #1f2937; margin: 0 0 15px 0; font-size: 18px; font-weight: 600;">
                     Something Special is Coming!
                 </h3>
@@ -622,11 +645,19 @@ def send_email(to_email: str, subject: str, body: str):
 async def send_candidate_emails(request: EmailRequest):
     """Send emails to selected candidates with enhanced interview scheduling"""
     try:
-        # Get candidate data
-        candidates = get_candidate_data(request.candidate_ids)
+        print(f"DEBUG EMAIL AGENT: Received request to send emails")
+        print(f"DEBUG EMAIL AGENT: Candidate IDs: {request.candidate_ids}")
+        print(f"DEBUG EMAIL AGENT: Email type: {request.email_type}")
+        print(f"DEBUG EMAIL AGENT: HR user ID: {request.hr_user_id}")
+        
+        # Get candidate data using matching result IDs or interview recording IDs
+        candidates = get_candidate_data(request.candidate_ids, getattr(request, "id_type", "matching_result"))
         
         if not candidates:
+            print(f"DEBUG EMAIL AGENT: No candidates found for IDs: {request.candidate_ids}")
             raise HTTPException(status_code=404, detail="No candidates found")
+        
+        print(f"DEBUG EMAIL AGENT: Found {len(candidates)} candidates")
         
         # Get HR user profile information for office address
         hr_profile = get_hr_user_profile(request.hr_user_id)
@@ -661,7 +692,6 @@ async def send_candidate_emails(request: EmailRequest):
             email = candidate['email']
             jd_id = candidate['jd_id']
             matching_result_id = candidate['matching_result_id']
-            interview_recording_id = candidate['interview_recording_id']
             
             print(f"DEBUG EMAIL AGENT: Processing candidate {candidate_name} (email: {email})")
             print(f"DEBUG EMAIL AGENT: Interview type: {request.interviewType}, DateTime: {request.interviewDateTime}")
@@ -747,50 +777,75 @@ async def send_candidate_emails(request: EmailRequest):
                             WHERE id = %s
                         """, ('selection_sent', 'shortlisted', matching_result_id))
                         
-                        # Update InterviewRecording with email status and meeting details
+                        # Create or update interview recording if interview details provided
                         if candidate_interview_details:
+                            # Try to find existing interview recording
                             cursor.execute("""
-                                UPDATE home_interviewrecording 
-                                SET email_sent = %s, 
-                                    email_type = %s, 
-                                    interview_round = %s, 
-                                    email_sent_at = NOW(),
-                                    interview_type = %s,
-                                    interview_date = %s,
-                                    interview_location = %s,
-                                    meeting_link = %s,
-                                    meeting_id = %s,
-                                    meeting_password = %s
-                                WHERE id = %s
-                            """, (
-                                True, 'selection', request.interview_round,
-                                candidate_interview_details.get('interview_type'),
-                                candidate_interview_details.get('interview_date'),
-                                candidate_interview_details.get('location'),
-                                candidate_interview_details.get('meeting_link'),
-                                candidate_interview_details.get('meeting_id'),
-                                candidate_interview_details.get('meeting_password'),
-                                interview_recording_id
-                            ))
+                                SELECT id FROM home_interviewrecording 
+                                WHERE matching_result_id = %s
+                            """, (matching_result_id,))
+                            
+                            existing_interview = cursor.fetchone()
+                            
+                            if existing_interview:
+                                # Update existing interview recording
+                                cursor.execute("""
+                                    UPDATE home_interviewrecording 
+                                    SET email_sent = %s, email_type = %s, interview_round = %s,
+                                        interview_type = %s, interview_date = %s,
+                                        interview_location = %s, meeting_link = %s,
+                                        meeting_id = %s, meeting_password = %s, email_sent_at = NOW()
+                                    WHERE id = %s
+                                """, (
+                                    True, 'selection', request.interview_round,
+                                    candidate_interview_details.get('interview_type'),
+                                    candidate_interview_details.get('interview_date'),
+                                    candidate_interview_details.get('location'),
+                                    candidate_interview_details.get('meeting_link'),
+                                    candidate_interview_details.get('meeting_id'),
+                                    candidate_interview_details.get('meeting_password'),
+                                    existing_interview['id']
+                                ))
+                            else:
+                                # Create new interview recording
+                                cursor.execute("""
+                                    INSERT INTO home_interviewrecording 
+                                    (matching_result_id, email_sent, email_type, interview_round,
+                                     interview_type, interview_date, interview_location, 
+                                     meeting_link, meeting_id, meeting_password, email_sent_at, status)
+                                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), %s)
+                                """, (
+                                    matching_result_id, True, 'selection', request.interview_round,
+                                    candidate_interview_details.get('interview_type'),
+                                    candidate_interview_details.get('interview_date'),
+                                    candidate_interview_details.get('location'),
+                                    candidate_interview_details.get('meeting_link'),
+                                    candidate_interview_details.get('meeting_id'),
+                                    candidate_interview_details.get('meeting_password'),
+                                    'scheduled'
+                                ))
                         else:
+                            # No interview details, just mark as email sent
                             cursor.execute("""
-                                UPDATE home_interviewrecording 
-                                SET email_sent = %s, email_type = %s, interview_round = %s, email_sent_at = NOW()
-                                WHERE id = %s
-                            """, (True, 'selection', request.interview_round, interview_recording_id))
+                                SELECT id FROM home_interviewrecording 
+                                WHERE matching_result_id = %s
+                            """, (matching_result_id,))
+                            
+                            existing_interview = cursor.fetchone()
+                            
+                            if existing_interview:
+                                cursor.execute("""
+                                    UPDATE home_interviewrecording 
+                                    SET email_sent = %s, email_type = %s, interview_round = %s, email_sent_at = NOW()
+                                    WHERE id = %s
+                                """, (True, 'selection', request.interview_round, existing_interview['id']))
                     else:
                         # Rejection email
                         cursor.execute("""
                             UPDATE home_matchingresult 
-                            SET email_status = %s
+                            SET email_status = %s, status = %s
                             WHERE id = %s
-                        """, ('rejection_sent', matching_result_id))
-                        
-                        cursor.execute("""
-                            UPDATE home_interviewrecording 
-                            SET email_sent = %s, email_type = %s, email_sent_at = NOW()
-                            WHERE id = %s
-                        """, (True, 'rejection', interview_recording_id))
+                        """, ('rejection_sent', 'rejected', matching_result_id))
                     
                     conn.commit()
                     cursor.close()

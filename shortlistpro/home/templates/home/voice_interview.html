@@ -118,8 +118,8 @@
                         Try Again
                     </button>
                 {% else %}
-                    <a href="{% url 'dashboard_home' %}" class="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors inline-block">
-                        Return to Dashboard
+                    <a href="{% url 'home' %}" class="px-6 py-3 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors inline-block">
+                        Return Home
                     </a>
                 {% endif %}
             </div>
@@ -431,8 +431,8 @@
             
             if (!interviewActive && reason === 'user_ended') {
                 // If interview hasn't started, just redirect
-                if (confirm('Are you sure you want to return to the dashboard?')) {
-                    window.location.href = '{% url "dashboard_home" %}';
+                if (confirm('Are you sure you want to return to the Home?')) {
+                    window.location.href = '{% url "home" %}';
                 }
                 return;
             }
@@ -484,8 +484,8 @@
                     
                     // Show completion message
                     setTimeout(() => {
-                        alert('Interview completed successfully! You will be redirected to your dashboard.');
-                        window.location.href = '{% url "dashboard_home" %}';
+                        alert('Interview completed successfully! You will be redirected to Home.');
+                        window.location.href = '{% url "home" %}';
                     }, 1500);
                 } else {
                     console.error('Failed to complete interview:', result.message);
@@ -494,8 +494,8 @@
                     
                     // Still allow redirect after error
                     setTimeout(() => {
-                        if (confirm('There was an error completing the interview. Return to dashboard anyway?')) {
-                            window.location.href = '{% url "dashboard_home" %}';
+                        if (confirm('There was an error completing the interview. Return to Home?')) {
+                            window.location.href = '{% url "home" %}';
                         }
                     }, 2000);
                 }
@@ -507,8 +507,8 @@
                 
                 // Still allow redirect after error
                 setTimeout(() => {
-                    if (confirm('There was an error completing the interview. Return to dashboard anyway?')) {
-                        window.location.href = '{% url "dashboard_home" %}';
+                    if (confirm('There was an error completing the interview. Return to Home anyway?')) {
+                        window.location.href = '{% url "home" %}';
                     }
                 }, 2000);
             }

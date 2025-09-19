@@ -1993,11 +1993,25 @@ def send_candidate_emails(request):
         print(f"  - Email Type: {email_type}")
         
         # Prepare payload for email agent
+        # If candidate_ids are InterviewRecording IDs (from interview dashboard), set id_type accordingly
+        # If candidate_ids are MatchingResult IDs (from matching dashboard), set id_type accordingly
+        # Heuristic: If all candidate_ids exist in InterviewRecording, use interview_recording, else matching_result
+        from .models import InterviewRecording, MatchingResult
+        interview_recording_count = InterviewRecording.objects.filter(id__in=candidate_ids).count()
+        matching_result_count = MatchingResult.objects.filter(id__in=candidate_ids).count()
+        if interview_recording_count == len(candidate_ids):
+            id_type = "interview_recording"
+        elif matching_result_count == len(candidate_ids):
+            id_type = "matching_result"
+        else:
+            # Mixed or not found, default to matching_result for safety
+            id_type = "matching_result"
         payload = {
             "candidate_ids": candidate_ids,
             "email_type": email_type,
             "interview_round": interview_round,
-            "hr_user_id": request.user.id
+            "hr_user_id": request.user.id,
+            "id_type": id_type
         }
         
         # Add interview scheduling data if provided
@@ -3457,7 +3471,8 @@ def onboard_candidate(request):
             email_data = {
                 "candidate_ids": [int(candidate_id)],
                 "email_type": "onboarding",
-                "hr_user_id": request.user.id
+                "hr_user_id": request.user.id,
+                "id_type": "interview_recording"
             }
             
             # Call email agent API
