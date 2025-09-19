@@ -4,9 +4,6 @@ from django.shortcuts import render
 def index(request):
     return render(request, 'home/index.html')
 
-def pricing(request):
-    return render(request, 'home/pricing.html')
-
 def contact(request):
     return render(request, 'home/contact.html')
 
