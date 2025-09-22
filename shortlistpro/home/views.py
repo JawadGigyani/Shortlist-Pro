@@ -30,7 +30,7 @@ from django.contrib.auth.forms import PasswordChangeForm
 from django.contrib.auth import update_session_auth_hash, login
 from django.shortcuts import redirect, get_object_or_404
 from django.http import JsonResponse
-from django.views.decorators.http import require_http_methods
+from django.views.decorators.http import require_http_methods, require_POST
 from django.views.decorators.csrf import csrf_exempt
 from django.db import IntegrityError
 from .forms import UserForm, ProfileForm, JobDescriptionForm, ResumeForm, CustomRegistrationForm
@@ -42,12 +42,13 @@ from datetime import timedelta
 import json
 import logging
 from .utils import generate_otp, can_resend_otp, validate_otp_format
+from django.conf import settings
 
 # Configure logging
 logger = logging.getLogger(__name__)
 
 # FastAPI service configurations
-FASTAPI_MATCHING_URL = "http://localhost:8001/match-resume"
+FASTAPI_MATCHING_URL = "http://localhost:8005/match-resume"
 FASTAPI_INTERVIEW_QUESTIONS_URL = "http://localhost:8004/generate-questions"
 FASTAPI_INTERVIEW_EVALUATION_URL = "http://localhost:8002/evaluate-interview"
 FASTAPI_TIMEOUT = 60  # Increased timeout for AI processing
@@ -3799,3 +3800,41 @@ def fetch_candidates(request):
             'success': False,
             'message': f'Error fetching candidates: {str(e)}'
         })
+    
+
+
+@require_POST
+@login_required
+def fetch_elevenlabs_audio(request):
+    """
+    Fetch audio from ElevenLabs using conversation_id and xi-api-key
+    Expects POST data: { 'conversation_id': ..., 'api_key': ... }
+    """
+    conversation_id = request.POST.get('conversation_id')
+    api_key = os.environ.get('ELEVENLABS_API_KEY')
+    if not conversation_id or not api_key:
+        return JsonResponse({'success': False, 'message': 'Missing conversation_id or ELEVENLABS_API_KEY in environment'})
+
+    url = f"https://api.elevenlabs.io/v1/convai/conversations/{conversation_id}/audio"
+    headers = {
+        "xi-api-key": api_key,
+        "Accept": "audio/mpeg"
+    }
+    response = requests.get(url, headers=headers)
+    if response.status_code == 200:
+        # Save audio file to InterviewRecording
+        recording = InterviewRecording.objects.filter(conversation_id=conversation_id).first()
+        if not recording:
+            return JsonResponse({'success': False, 'message': 'InterviewRecording not found'})
+        # Save to MEDIA_ROOT/interview_audio/{conversation_id}.mp3
+        audio_rel_path = f"interview_audio/{conversation_id}.mp3"
+        audio_abs_path = os.path.join(settings.MEDIA_ROOT, audio_rel_path)
+        os.makedirs(os.path.dirname(audio_abs_path), exist_ok=True)
+        with open(audio_abs_path, "wb") as f:
+            f.write(response.content)
+        # Set only the relative path for FileField
+        recording.audio_file.name = audio_rel_path
+        recording.save()
+        return JsonResponse({'success': True, 'message': 'Audio fetched and saved', 'audio_url': recording.audio_file.url})
+    else:
+        return JsonResponse({'success': False, 'message': f'Failed to fetch audio: {response.text}'})

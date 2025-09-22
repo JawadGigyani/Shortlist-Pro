@@ -1370,24 +1370,9 @@ function showAlert(message, type) {
         
         <!-- Matching Progress -->
         <div x-show="isMatching" class="mb-6">
-          <h4 class="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <span class="w-6 h-6 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center">
-              <svg class="w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-              </svg>
-            </span>
-            AI Matching in Progress
-          </h4>
-          
-          <div class="bg-gray-100 rounded-lg p-4">
-            <div class="flex items-center justify-between mb-2">
-              <span class="text-sm font-medium text-gray-700" x-text="currentMatchingResume"></span>
-              <span class="text-sm font-medium text-gray-700" x-text="matchingProgress + '%'"></span>
-            </div>
-            <div class="w-full bg-gray-200 rounded-full h-2">
-              <div class="bg-blue-500 h-2 rounded-full transition-all duration-500"
-                   :style="`width: ${matchingProgress}%`"></div>
-            </div>
+          <div class="flex flex-col items-center justify-center py-8">
+            <div class="animate-spin rounded-full h-16 w-16 border-4 border-blue-600 border-t-transparent mb-4"></div>
+            <h4 class="text-lg font-semibold text-gray-900 mb-2">Matching...</h4>
           </div>
         </div>
       </div>
